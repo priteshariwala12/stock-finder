@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary tools & archives
+cloudflared.exe
+netlify_deploy.zip
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
