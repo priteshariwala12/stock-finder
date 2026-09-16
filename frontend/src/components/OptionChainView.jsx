@@ -4,6 +4,7 @@ import {
   ExternalLink, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   ShieldCheck, AlertCircle, Info, Filter, Clock, Eye, BarChart2, Target
 } from 'lucide-react';
+import RealTimeChartModal from './RealTimeChartModal';
 
 const POPULAR_INDICES = [
   { symbol: 'NIFTY', name: 'NIFTY 50', lot: 65 },
@@ -22,6 +23,15 @@ export default function OptionChainView({ onSelectStock }) {
   const [searchStock, setSearchStock] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   
+  // Real-Time Chart Modal State (0-Delay Powered by Fyers API v3)
+  const [chartModal, setChartModal] = useState({
+    isOpen: false,
+    symbol: '',
+    contractTitle: '',
+    initialLtp: null,
+    isOption: false
+  });
+
   // Data States
   const [symbolsData, setSymbolsData] = useState({ indices: [], stocks: [] });
   const [chainData, setChainData] = useState(null);
@@ -224,7 +234,40 @@ export default function OptionChainView({ onSelectStock }) {
     return `https://in.tradingview.com/chart/?symbol=${encodeURIComponent(ticker)}`;
   };
 
-  // Open directly on TradingView.com in a new tab
+  // Open Real-time Candlestick Chart Modal (0-delay powered by Fyers API v3)
+  const openChartModal = (row, optType = 'CE') => {
+    const isOption = !!optType;
+    const strike = row?.strike;
+    const sideData = optType === 'CE' ? row?.ce : row?.pe;
+
+    // Use official Fyers symbol if provided by backend, or format fallback
+    let chartSym = sideData?.tv_symbol;
+    if (!chartSym && isOption) {
+      chartSym = `NSE:${selectedSymbol}${strike}${optType}`;
+    } else if (!chartSym) {
+      // Spot underlying
+      const isIndex = POPULAR_INDICES.some(idx => idx.symbol === selectedSymbol);
+      if (selectedSymbol === 'SENSEX') chartSym = 'BSE:SENSEX-INDEX';
+      else if (isIndex) chartSym = `NSE:${selectedSymbol}-INDEX`;
+      else chartSym = `NSE:${selectedSymbol}-EQ`;
+    }
+
+    const title = sideData?.contract_title || (
+      isOption 
+        ? `${selectedSymbol} ₹${strike?.toLocaleString('en-IN')} ${optType}`
+        : `${selectedSymbol} Spot`
+    );
+
+    setChartModal({
+      isOpen: true,
+      symbol: chartSym,
+      contractTitle: title,
+      initialLtp: sideData?.ltp || chainData?.underlying_price || null,
+      isOption
+    });
+  };
+
+  // Open directly on TradingView.com in a new tab (fallback)
   const openTradingView = (strike, optType = 'CE') => {
     const exp = chainData?.selected_expiry || selectedExpiry;
     const url = getTradingViewUrl(selectedSymbol, exp, strike, optType);
@@ -502,8 +545,8 @@ export default function OptionChainView({ onSelectStock }) {
 
               {/* Info Badge */}
               <div className="hidden xl:flex items-center gap-1.5 text-[11px] text-emerald-300 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
-                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Click any <b>Strike Price</b> or <b>LTP</b> to open directly on TradingView.com</span>
+                <BarChart2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Click any <b>Strike</b>, <b>LTP</b>, or <b>Spot</b> for <b>Real-Time 0-Delay Candlestick Chart</b></span>
               </div>
             </div>
           </div>
@@ -531,9 +574,16 @@ export default function OptionChainView({ onSelectStock }) {
               </span>
             )}
 
-            {/* Underlying Spot Price */}
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-black text-white tracking-tight">{chainData?.name || selectedSymbol}</span>
+            {/* Underlying Spot Price (Clickable to open Real-Time Chart) */}
+            <div 
+              onClick={() => openChartModal(null, null)}
+              className="flex items-baseline gap-2 cursor-pointer group/spot hover:opacity-90 transition-all"
+              title={`View ${chainData?.name || selectedSymbol} Real-Time 0-Delay Candlestick Chart`}
+            >
+              <span className="text-sm font-black text-white tracking-tight group-hover/spot:text-indigo-300 flex items-center gap-1">
+                {chainData?.name || selectedSymbol}
+                <BarChart2 className="w-3 h-3 text-indigo-400 inline opacity-70 group-hover/spot:opacity-100" />
+              </span>
               <span className="text-lg font-black text-white font-mono">
                 ₹{chainData?.underlying_price?.toLocaleString('en-IN') || '—'}
               </span>
@@ -690,27 +740,27 @@ export default function OptionChainView({ onSelectStock }) {
                     </span>
                   </td>
 
-                  {/* CE: LTP (Clickable -> Opens Call TV Chart directly on TradingView.com) */}
+                  {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
-                    onClick={() => openTradingView(strike, 'CE')}
+                    onClick={() => openChartModal(row, 'CE')}
                     className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
-                    title={`Open ${selectedSymbol} ₹${strike} CE directly on TradingView.com (New Tab)`}
+                    title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-end gap-1">
                       <span>₹{ce.ltp}</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
+                      <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
                     </div>
                   </td>
 
-                  {/* STRIKE PRICE (CENTER) - Clickable -> Directly Opens TradingView.com! */}
+                  {/* STRIKE PRICE (CENTER) - Clickable -> Opens Real-Time Candlestick Chart */}
                   <td 
-                    onClick={() => openTradingView(strike, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
+                    onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
                     className={`py-2 px-3 text-center border-r border-slate-800 cursor-pointer transition-all ${
                       isAtm 
                         ? 'bg-indigo-600 text-white font-black shadow-md' 
                         : 'bg-slate-900 text-white font-extrabold hover:bg-indigo-900/60 hover:text-indigo-200'
                     }`}
-                    title={`Open Strike ₹${strike} directly on TradingView.com (New Tab)`}
+                    title={`Open Strike ₹${strike} Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-center gap-1.5">
                       <span>{strike.toLocaleString('en-IN')}</span>
@@ -719,19 +769,19 @@ export default function OptionChainView({ onSelectStock }) {
                           ATM
                         </span>
                       )}
-                      <ExternalLink className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-indigo-300 transition-opacity" />
+                      <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-indigo-300 transition-opacity" />
                     </div>
                   </td>
 
-                  {/* PE: LTP (Clickable -> Opens Put TV Chart directly on TradingView.com) */}
+                  {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
-                    onClick={() => openTradingView(strike, 'PE')}
+                    onClick={() => openChartModal(row, 'PE')}
                     className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
-                    title={`Open ${selectedSymbol} ₹${strike} PE directly on TradingView.com (New Tab)`}
+                    title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-start gap-1">
                       <span>₹{pe.ltp}</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
+                      <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
                     </div>
                   </td>
 
@@ -795,6 +845,16 @@ export default function OptionChainView({ onSelectStock }) {
           </span>
         </div>
       </div>
+
+      {/* Real-Time Candlestick Chart Modal (0-Delay Powered by Fyers API v3) */}
+      <RealTimeChartModal
+        isOpen={chartModal.isOpen}
+        onClose={() => setChartModal(prev => ({ ...prev, isOpen: false }))}
+        symbol={chartModal.symbol}
+        contractTitle={chartModal.contractTitle}
+        initialLtp={chartModal.initialLtp}
+        isOption={chartModal.isOption}
+      />
     </div>
   );
 }

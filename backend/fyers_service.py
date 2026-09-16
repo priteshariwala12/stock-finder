@@ -283,3 +283,83 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
         "strikes": parsed_strikes,
         "feed_source": "FYERS_API_V3"
     }
+
+
+def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3) -> Dict[str, Any]:
+    """
+    Fetches official 100% real-time OHLC candlestick data from Fyers API v3 (Zero-Delay).
+    Resolutions supported: 1 (1m), 2, 3, 5, 15, 30, 60, D (Daily).
+    """
+    fyers = get_fyers_client()
+    if not fyers:
+        return {"status": "error", "message": "Fyers not authenticated"}
+
+    fyers_sym = symbol.strip()
+    if not (fyers_sym.startswith("NSE:") or fyers_sym.startswith("BSE:")):
+        fyers_sym = to_fyers_symbol(fyers_sym)
+
+    now = datetime.now()
+    range_to = now.strftime("%Y-%m-%d")
+    # For daily or intraday, ensure enough lookback
+    lookback = max(2, days if resolution != "D" else days * 30)
+    range_from = (now - timedelta(days=lookback)).strftime("%Y-%m-%d")
+
+    data = {
+        "symbol": fyers_sym,
+        "resolution": str(resolution),
+        "date_format": "1",
+        "range_from": range_from,
+        "range_to": range_to,
+        "cont_flag": "1"
+    }
+
+    try:
+        resp = fyers.history(data=data)
+        fyers_tv_url = f"https://trade.fyers.in/?symbol={fyers_sym}"
+        tradingview_url = f"https://www.tradingview.com/chart/?symbol={fyers_sym}"
+
+        if not resp or resp.get("s") != "ok":
+            raw_msg = resp.get("message") if resp else ""
+            fallback_msg = (
+                "No trade activity / candles recorded for this strike in the selected timeframe."
+                if ("CE" in fyers_sym or "PE" in fyers_sym)
+                else "No candlestick history available for this symbol."
+            )
+            return {
+                "status": "error",
+                "message": raw_msg.strip() if raw_msg and raw_msg.strip() else fallback_msg,
+                "symbol": fyers_sym,
+                "fyers_tv_url": fyers_tv_url,
+                "tradingview_url": tradingview_url
+            }
+
+        candles = []
+        for c in resp.get("candles", []):
+            # c = [timestamp_epoch_sec, open, high, low, close, volume]
+            candles.append({
+                "time": int(c[0]),
+                "open": float(c[1]),
+                "high": float(c[2]),
+                "low": float(c[3]),
+                "close": float(c[4]),
+                "volume": int(c[5])
+            })
+
+        return {
+            "status": "success",
+            "symbol": fyers_sym,
+            "resolution": resolution,
+            "candles": candles,
+            "fyers_tv_url": fyers_tv_url,
+            "tradingview_url": tradingview_url
+        }
+    except Exception as e:
+        logger.error(f"Error fetching history for {fyers_sym}: {e}")
+        return {
+            "status": "error", 
+            "message": str(e), 
+            "symbol": fyers_sym,
+            "fyers_tv_url": f"https://trade.fyers.in/?symbol={fyers_sym}",
+            "tradingview_url": f"https://www.tradingview.com/chart/?symbol={fyers_sym}"
+        }
+

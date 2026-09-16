@@ -1130,6 +1130,20 @@ def api_get_option_chain_data(
         logger.error(f"Error fetching option chain for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/chart/history")
+def api_get_chart_history(
+    symbol: str = Query("NIFTY", description="Symbol e.g. NIFTY, RELIANCE, NSE:NIFTY2692223100CE"),
+    resolution: str = Query("5", description="Interval: 1, 2, 3, 5, 15, 30, 60, D"),
+    days: int = Query(3, description="Lookback days")
+):
+    try:
+        from fyers_service import fetch_candlestick_history
+        return fetch_candlestick_history(symbol=symbol, resolution=resolution, days=days)
+    except Exception as e:
+        logger.error(f"Error fetching chart history for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/market/sector-flow")
 def get_sector_flow():
     conn = get_db_connection()
