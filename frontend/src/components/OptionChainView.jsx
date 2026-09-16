@@ -5,6 +5,7 @@ import {
   ShieldCheck, AlertCircle, Info, Filter, Clock, Eye, BarChart2, Target
 } from 'lucide-react';
 import RealTimeChartModal from './RealTimeChartModal';
+import PaperTradingTerminal from './PaperTradingTerminal';
 
 const POPULAR_INDICES = [
   { symbol: 'NIFTY', name: 'NIFTY 50', lot: 65 },
@@ -40,6 +41,8 @@ export default function OptionChainView({ onSelectStock }) {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(1); // 1-second default real-time refresh
   const [error, setError] = useState(null);
+  const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(false);
+  const [paperLegs, setPaperLegs] = useState([]);
 
   const searchContainerRef = useRef(null);
   const atmRowRef = useRef(null);
@@ -278,6 +281,51 @@ export default function OptionChainView({ onSelectStock }) {
     const exp = chainData?.selected_expiry || selectedExpiry;
     const url = getTradingViewUrl(selectedSymbol, exp, strike, optType);
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Live quotes map for real-time PnL in Paper Trading Terminal
+  const quotesMap = useMemo(() => {
+    const map = {};
+    if (chainData?.strikes) {
+      for (const s of chainData.strikes) {
+        if (s.ce?.ltp !== undefined) map[`${s.strike}_CE`] = s.ce.ltp;
+        if (s.pe?.ltp !== undefined) map[`${s.strike}_PE`] = s.pe.ltp;
+      }
+    }
+    return map;
+  }, [chainData]);
+
+  // Quick trade handler when clicking B (Buy) or S (Sell) near strike
+  const handleQuickTrade = (e, strike, type, action) => {
+    e.stopPropagation();
+    const row = (chainData?.strikes || []).find(s => s.strike === strike);
+    const sideData = type === 'CE' ? row?.ce : row?.pe;
+    const entryPrice = sideData?.ltp || 100;
+    const currentLotSize = chainData?.lot_size || (selectedSymbol.includes('BANK') ? 30 : selectedSymbol.includes('SENSEX') ? 20 : 50);
+
+    setPaperLegs(prev => {
+      const existingIndex = prev.findIndex(l => l.strike === strike && l.type === type && l.action === action);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = { ...updated[existingIndex], lots: (updated[existingIndex].lots || 1) + 1 };
+        return updated;
+      }
+      return [
+        ...prev,
+        {
+          id: `${strike}_${type}_${action}_${Date.now()}`,
+          symbol: selectedSymbol,
+          strike,
+          type,
+          action,
+          entryPrice,
+          lots: 1,
+          lotSize: currentLotSize
+        }
+      ];
+    });
+
+    setIsPaperTerminalOpen(true);
   };
 
   const handleSelectSymbol = (sym) => {
@@ -527,8 +575,27 @@ export default function OptionChainView({ onSelectStock }) {
               </div>
             </div>
 
-            {/* Right Action: Focus ATM, Refresh button & TradingView Tip */}
+            {/* Right Action: Paper Trading, Focus ATM, Refresh button & TradingView Tip */}
             <div className="flex items-center gap-2">
+              {/* Paper Trading Terminal Toggle */}
+              <button
+                onClick={() => setIsPaperTerminalOpen(!isPaperTerminalOpen)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                  isPaperTerminalOpen || paperLegs.length > 0
+                    ? 'bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white border-emerald-400/60 shadow-emerald-500/20'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                }`}
+                title="Open Paper Trading & Strategy Payoff Terminal"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-300" />
+                <span>Paper Trading</span>
+                {paperLegs.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white text-indigo-900 text-[10px] font-black">
+                    {paperLegs.length}
+                  </span>
+                )}
+              </button>
+
               {/* Focus ATM Button */}
               <button
                 onClick={() => scrollToAtm(true)}
@@ -749,12 +816,30 @@ export default function OptionChainView({ onSelectStock }) {
                   {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
                     onClick={() => openChartModal(row, 'CE')}
-                    className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
+                    className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all relative ${ceItmBg}`}
                     title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-end gap-1">
                       <span>₹{ce.ltp}</span>
                       <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
+                    </div>
+
+                    {/* Quick Hover Buy (B) and Sell (S) Buttons */}
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 z-20 bg-slate-900/95 p-0.5 rounded shadow-xl border border-slate-700">
+                      <button
+                        onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
+                        className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-blue-500/30"
+                        title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} CE @ ₹${ce.ltp}`}
+                      >
+                        B
+                      </button>
+                      <button
+                        onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
+                        className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-rose-500/30"
+                        title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} CE @ ₹${ce.ltp}`}
+                      >
+                        S
+                      </button>
                     </div>
                   </td>
 
@@ -782,12 +867,30 @@ export default function OptionChainView({ onSelectStock }) {
                   {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
                     onClick={() => openChartModal(row, 'PE')}
-                    className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
+                    className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all relative ${peItmBg}`}
                     title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-start gap-1">
                       <span>₹{pe.ltp}</span>
                       <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
+                    </div>
+
+                    {/* Quick Hover Buy (B) and Sell (S) Buttons */}
+                    <div className="absolute left-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 z-20 bg-slate-900/95 p-0.5 rounded shadow-xl border border-slate-700">
+                      <button
+                        onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
+                        className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-blue-500/30"
+                        title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} PE @ ₹${pe.ltp}`}
+                      >
+                        B
+                      </button>
+                      <button
+                        onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
+                        className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-rose-500/30"
+                        title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} PE @ ₹${pe.ltp}`}
+                      >
+                        S
+                      </button>
                     </div>
                   </td>
 
@@ -851,6 +954,19 @@ export default function OptionChainView({ onSelectStock }) {
           </span>
         </div>
       </div>
+
+      {/* Paper Trading & Strategy Payoff Terminal */}
+      <PaperTradingTerminal
+        isOpen={isPaperTerminalOpen}
+        onClose={() => setIsPaperTerminalOpen(false)}
+        activeLegs={paperLegs}
+        onUpdateLegs={setPaperLegs}
+        currentSpot={chainData?.underlying_price || 23500}
+        symbol={selectedSymbol}
+        expiry={chainData?.selected_expiry || selectedExpiry}
+        lotSize={chainData?.lot_size || 50}
+        quotesMap={quotesMap}
+      />
 
       {/* Real-Time Candlestick Chart Modal (0-Delay Powered by Fyers API v3) */}
       <RealTimeChartModal
