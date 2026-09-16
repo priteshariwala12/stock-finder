@@ -1370,7 +1370,7 @@ def get_sync_status():
         "latest_sync": dict(row) if row else None
     }
 
-# Mount frontend static build if available
+# Mount frontend static build if available (Paper Trading & Strategy Terminal enabled)
 dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 if os.path.exists(dist_path):
     from fastapi.staticfiles import StaticFiles
