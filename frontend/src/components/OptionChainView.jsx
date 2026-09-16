@@ -28,6 +28,7 @@ export default function OptionChainView({ onSelectStock }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(1); // 1-second default real-time refresh
   const [error, setError] = useState(null);
 
   const searchContainerRef = useRef(null);
@@ -149,16 +150,15 @@ export default function OptionChainView({ onSelectStock }) {
     fetchOptionChain(selectedSymbol, selectedExpiry);
   }, [selectedSymbol, selectedExpiry]);
 
-  // Auto-refresh interval (every 12 seconds during market hours)
+  // Real-time 1-Second Auto-refresh powered by Fyers API v3
   useEffect(() => {
     if (!autoRefresh) return;
+    const intervalMs = Math.max(1, refreshInterval) * 1000;
     const interval = setInterval(() => {
-      if (chainData?.is_market_open) {
-        fetchOptionChain(selectedSymbol, selectedExpiry, true);
-      }
-    }, 12000);
+      fetchOptionChain(selectedSymbol, selectedExpiry, true);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, [autoRefresh, selectedSymbol, selectedExpiry, chainData?.is_market_open]);
+  }, [autoRefresh, refreshInterval, selectedSymbol, selectedExpiry]);
 
   // Filter stocks for search dropdown
   const filteredStocks = useMemo(() => {
@@ -442,19 +442,40 @@ export default function OptionChainView({ onSelectStock }) {
                 </div>
               </div>
 
-              {/* Auto Refresh Toggle */}
-              <button
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-all ${
-                  autoRefresh
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                    : 'bg-slate-800/60 text-slate-400 border-slate-700'
-                }`}
-                title="Auto-refresh every 12 seconds during market hours"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
-                <span>Auto-refresh: {autoRefresh ? 'ON' : 'OFF'}</span>
-              </button>
+              {/* Auto Refresh & Speed Controls */}
+              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 gap-1 text-xs">
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    autoRefresh
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Toggle real-time auto-refresh"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                  <span>{autoRefresh ? 'Live' : 'Paused'}</span>
+                </button>
+
+                {autoRefresh && (
+                  <div className="flex items-center gap-0.5 pl-1 border-l border-slate-800">
+                    {[1, 3, 5].map(sec => (
+                      <button
+                        key={sec}
+                        onClick={() => setRefreshInterval(sec)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                          refreshInterval === sec
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                        title={`Refresh every ${sec} second(s)`}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right Action: Focus ATM, Refresh button & TradingView Tip */}
@@ -476,7 +497,7 @@ export default function OptionChainView({ onSelectStock }) {
                 title="Fetch fresh real-time option chain from exchange"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
-                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
               </button>
 
               {/* Info Badge */}
@@ -501,6 +522,14 @@ export default function OptionChainView({ onSelectStock }) {
               <span className={`w-2 h-2 rounded-full ${chainData?.is_market_open ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
               <span>{chainData?.market_status_label || (chainData?.is_market_open ? 'LIVE MARKET' : 'MARKET CLOSED')}</span>
             </div>
+
+            {/* Fyers Live Feed Badge */}
+            {chainData?.feed_source === 'FYERS_API_V3' && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                ⚡ Fyers 1s Real-Time
+              </span>
+            )}
 
             {/* Underlying Spot Price */}
             <div className="flex items-baseline gap-2">

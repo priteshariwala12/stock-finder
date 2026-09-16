@@ -647,6 +647,21 @@ def get_live_option_chain(symbol: str, expiry: Optional[str] = None, force_refre
         if time.time() - entry["timestamp"] < cache_ttl:
             return entry["data"]
 
+    # 0. Primary High-Speed 1-Second Feed: Fyers API v3 (Real-Time Official Data)
+    try:
+        from fyers_service import get_fyers_parsed_option_chain, get_access_token
+        if get_access_token():
+            fyers_chain = get_fyers_parsed_option_chain(sym, strikecount=25)
+            if fyers_chain and fyers_chain.get("strikes"):
+                _MEMORY_CACHE[cache_key] = {
+                    "timestamp": time.time(),
+                    "data": fyers_chain
+                }
+                save_option_chain_to_cache(fyers_chain, db_path)
+                return fyers_chain
+    except Exception as e:
+        logger.debug("Fyers fetch skipped or failed: %s", e)
+
     is_idx = any(item["symbol"] == sym for item in INDEX_SYMBOLS)
 
     # 1. Fetch Contract Info for Expiries
