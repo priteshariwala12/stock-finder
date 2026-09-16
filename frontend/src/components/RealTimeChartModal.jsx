@@ -89,11 +89,39 @@ function RealTimeChartModalInner({
   const effectiveSymbol = symbol || 'NSE:NIFTY50-INDEX';
   const tvSymbol = toTradingViewSymbol(effectiveSymbol);
 
+  // Indian Standard Time (IST is UTC +5:30 = +19,800 seconds)
+  const IST_OFFSET_SECONDS = 19800;
+
   const [resolution, setResolution] = useState('5'); // Default 5-min
   const [showVolume, setShowVolume] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hoveredCandle, setHoveredCandle] = useState(null);
+  const [currentIstTime, setCurrentIstTime] = useState(() => {
+    return new Date().toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour12: true,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  });
+
+  // Keep live current IST clock ticking every second
+  useEffect(() => {
+    const updateTimer = () => {
+      setCurrentIstTime(new Date().toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour12: true,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }));
+    };
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [liveInfo, setLiveInfo] = useState({
     ltp: initialLtp || null,
     change: underlyingChange,
@@ -109,23 +137,29 @@ function RealTimeChartModalInner({
     setError(null);
 
     try {
-      const days = res === '1' ? 1 : (res === 'D' ? 60 : 3);
+      const days = res === '1' ? 1 : (res === 'D' ? 30 : 3);
       const resp = await fetch(`/api/chart/history?symbol=${encodeURIComponent(effectiveSymbol)}&resolution=${res}&days=${days}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
       if (data.status === 'success' && data.candles && data.candles.length > 0) {
-        // Sort and deduplicate by time
+        // Sort and deduplicate by time (adjusted to Indian Standard Time IST)
         const sorted = data.candles
-          .map(c => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-            volume: c.volume
-          }))
-          .sort((a, b) => a.time - b.time);
+          .map(c => {
+            const timeVal = res === 'D'
+              ? new Date((c.time + IST_OFFSET_SECONDS) * 1000).toISOString().split('T')[0]
+              : (c.time + IST_OFFSET_SECONDS);
+
+            return {
+              time: timeVal,
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+              volume: c.volume
+            };
+          })
+          .sort((a, b) => (typeof a.time === 'number' ? a.time - b.time : a.time.localeCompare(b.time)));
 
         // Remove duplicate timestamps if any
         const unique = [];
@@ -270,7 +304,8 @@ function RealTimeChartModalInner({
         if (data) {
           setHoveredCandle({
             ...data,
-            volume: vData?.value
+            volume: vData?.value,
+            time: param.time
           });
         }
       });
@@ -339,6 +374,10 @@ function RealTimeChartModalInner({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
                   Fyers Zero-Delay
                 </span>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-950/70 border border-indigo-500/30 text-indigo-300 font-mono text-[11px] font-bold">
+                  <Clock className="w-3 h-3 text-indigo-400" />
+                  <span>{currentIstTime} IST</span>
+                </span>
               </div>
               <p className="text-[11px] text-slate-400 font-mono">{effectiveSymbol}</p>
             </div>
@@ -347,6 +386,16 @@ function RealTimeChartModalInner({
           {/* Candlestick OHLC Header Stats */}
           {activeCandle ? (
             <div className="hidden lg:flex items-center gap-3 text-xs font-mono bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
+              {activeCandle.time && (
+                <span className="text-indigo-400 font-bold pr-2 border-r border-slate-700 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-indigo-400" />
+                  <span>
+                    {typeof activeCandle.time === 'number'
+                      ? new Date(activeCandle.time * 1000).toISOString().substr(11, 5) + ' IST'
+                      : activeCandle.time}
+                  </span>
+                </span>
+              )}
               <span className="text-slate-400">O: <b className="text-white">₹{activeCandle.open?.toFixed(2)}</b></span>
               <span className="text-slate-400">H: <b className="text-emerald-400">₹{activeCandle.high?.toFixed(2)}</b></span>
               <span className="text-slate-400">L: <b className="text-rose-400">₹{activeCandle.low?.toFixed(2)}</b></span>
@@ -498,10 +547,14 @@ function RealTimeChartModalInner({
         </div>
 
         {/* Modal Bottom Strip */}
-        <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 shrink-0">
-          <div className="flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Timezone: <b>IST (UTC+5:30)</b> • Live Candlesticks updating every 3s via Fyers WebSocket & API</span>
+        <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 shrink-0 gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-indigo-300 font-medium">
+              <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Current IST Time: <b className="text-white font-mono text-xs">{currentIstTime}</b></span>
+            </div>
+            <span className="text-slate-600 hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Timezone: <b>IST (UTC+5:30)</b> • Live Candlesticks updating every 3s via Fyers WebSocket & API</span>
           </div>
           <div className="text-[11px] text-slate-500">
             Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">ESC</kbd> to exit chart

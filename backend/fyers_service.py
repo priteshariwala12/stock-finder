@@ -348,8 +348,8 @@ def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3)
 
     now = datetime.now()
     range_to = now.strftime("%Y-%m-%d")
-    # For daily or intraday, ensure enough lookback
-    lookback = max(2, days if resolution != "D" else days * 30)
+    # Fyers API allows maximum 90-100 days per history request
+    lookback = max(2, min(90, days if resolution != "D" else min(90, days)))
     range_from = (now - timedelta(days=lookback)).strftime("%Y-%m-%d")
 
     data = {
