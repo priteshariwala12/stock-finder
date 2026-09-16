@@ -43,6 +43,7 @@ export default function OptionChainView({ onSelectStock }) {
   const [error, setError] = useState(null);
   const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(false);
   const [paperLegs, setPaperLegs] = useState([]);
+  const [hoveredStrike, setHoveredStrike] = useState(null);
 
   const searchContainerRef = useRef(null);
   const atmRowRef = useRef(null);
@@ -774,7 +775,9 @@ export default function OptionChainView({ onSelectStock }) {
                   key={strike} 
                   ref={isAtm ? atmRowRef : null}
                   id={isAtm ? "atm-strike-row" : undefined}
-                  className={`hover:bg-slate-800/40 transition-colors group ${
+                  onMouseEnter={() => setHoveredStrike(strike)}
+                  onMouseLeave={() => setHoveredStrike(null)}
+                  className={`hover:bg-slate-800/60 transition-colors group ${
                     isAtm ? 'ring-2 ring-indigo-400 bg-indigo-950/40 shadow-lg shadow-indigo-500/20 z-10 relative' : ''
                   }`}
                 >
@@ -816,81 +819,86 @@ export default function OptionChainView({ onSelectStock }) {
                   {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
                     onClick={() => openChartModal(row, 'CE')}
-                    className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all relative ${ceItmBg}`}
+                    className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
                     title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-end gap-1">
                       <span>₹{ce.ltp}</span>
                       <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
                     </div>
-
-                    {/* Quick Hover Buy (B) and Sell (S) Buttons */}
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 z-20 bg-slate-900/95 p-0.5 rounded shadow-xl border border-slate-700">
-                      <button
-                        onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
-                        className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-blue-500/30"
-                        title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} CE @ ₹${ce.ltp}`}
-                      >
-                        B
-                      </button>
-                      <button
-                        onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
-                        className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-rose-500/30"
-                        title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} CE @ ₹${ce.ltp}`}
-                      >
-                        S
-                      </button>
-                    </div>
                   </td>
 
-                  {/* STRIKE PRICE (CENTER) - Clickable -> Opens Real-Time Candlestick Chart */}
+                  {/* STRIKE PRICE (CENTER) - Buy & Sell Action Buttons on Hover */}
                   <td 
-                    onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
-                    className={`py-2 px-3 text-center border-r border-slate-800 cursor-pointer transition-all ${
+                    className={`py-1 px-1.5 text-center border-r border-slate-800 transition-all select-none ${
                       isAtm 
                         ? 'bg-indigo-600 text-white font-black shadow-md' 
-                        : 'bg-slate-900 text-white font-extrabold hover:bg-indigo-900/60 hover:text-indigo-200'
+                        : 'bg-slate-900 text-white font-extrabold'
                     }`}
-                    title={`Open Strike ₹${strike} Real-Time Candlestick Chart`}
                   >
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>{strike.toLocaleString('en-IN')}</span>
-                      {isAtm && (
-                        <span className="px-1 py-0.2 rounded bg-white text-indigo-900 text-[9px] font-black uppercase tracking-wider">
-                          ATM
-                        </span>
-                      )}
-                      <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-indigo-300 transition-opacity" />
+                    <div className="flex items-center justify-between gap-1 min-w-[140px] px-1">
+                      {/* CE Quick Trade Buttons (LEFT of Strike - Calls) */}
+                      <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                        <button
+                          onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
+                          className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
+                          title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                        >
+                          B
+                        </button>
+                        <button
+                          onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
+                          className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
+                          title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                        >
+                          S
+                        </button>
+                      </div>
+
+                      {/* Strike Price & Real-Time Chart Link */}
+                      <div 
+                        onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
+                        className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-1"
+                        title={`Click to open Strike ₹${strike} Real-Time Candlestick Chart`}
+                      >
+                        <span className="font-mono font-bold text-xs">{strike.toLocaleString('en-IN')}</span>
+                        {isAtm && (
+                          <span className="px-1 py-0.2 rounded bg-white text-indigo-900 text-[8px] font-black uppercase">
+                            ATM
+                          </span>
+                        )}
+                        <BarChart2 className="w-2.5 h-2.5 opacity-40 hover:opacity-100 text-indigo-300 transition-opacity" />
+                      </div>
+
+                      {/* PE Quick Trade Buttons (RIGHT of Strike - Puts) */}
+                      <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                        <button
+                          onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
+                          className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
+                          title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                        >
+                          B
+                        </button>
+                        <button
+                          onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
+                          className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
+                          title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                        >
+                          S
+                        </button>
+                      </div>
                     </div>
                   </td>
 
                   {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
                   <td 
                     onClick={() => openChartModal(row, 'PE')}
-                    className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all relative ${peItmBg}`}
+                    className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
                     title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
                   >
                     <div className="flex items-center justify-start gap-1">
                       <span>₹{pe.ltp}</span>
                       <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
-                    </div>
-
-                    {/* Quick Hover Buy (B) and Sell (S) Buttons */}
-                    <div className="absolute left-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 z-20 bg-slate-900/95 p-0.5 rounded shadow-xl border border-slate-700">
-                      <button
-                        onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
-                        className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-blue-500/30"
-                        title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} PE @ ₹${pe.ltp}`}
-                      >
-                        B
-                      </button>
-                      <button
-                        onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
-                        className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center transition-all active:scale-90 cursor-pointer shadow-sm shadow-rose-500/30"
-                        title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} PE @ ₹${pe.ltp}`}
-                      >
-                        S
-                      </button>
                     </div>
                   </td>
 
