@@ -180,16 +180,14 @@ function RealTimeChartModalInner({
         rightPriceScale: {
           borderColor: '#334155',
           // Candles strictly stay in top 78% of chart, leaving bottom 22% empty
-          scaleMargins: { top: 0.06, bottom: 0.22 }
-        }
-      });
-
-      // Volume scale overlay strictly restricted to bottom 12% of chart
-      // Top 88% is completely blank so volume NEVER overlaps candles
-      chart.priceScale('').applyOptions({
-        scaleMargins: {
-          top: 0.88,
-          bottom: 0
+          scaleMargins: { top: 0.05, bottom: 0.22 }
+        },
+        overlayPriceScales: {
+          // Guaranteed fallback: All overlay scales capped to bottom 15% (under 20% limit)
+          scaleMargins: {
+            top: 0.85,
+            bottom: 0
+          }
         }
       });
 
@@ -203,14 +201,27 @@ function RealTimeChartModalInner({
       });
 
       // In lightweight-charts v5, use addSeries(HistogramSeries)
-      // lastValueVisible: false and priceLineVisible: false remove extra labels and lines
+      // Dedicated priceScaleId: 'volume_scale' ensures volume is completely independent
       const volumeSeries = chart.addSeries(HistogramSeries, {
         priceFormat: { type: 'volume' },
-        priceScaleId: '',
+        priceScaleId: 'volume_scale',
         lastValueVisible: false,
         priceLineVisible: false,
         visible: showVolume
       });
+
+      // Explicitly enforce scale margins on the volume price scale directly
+      // top: 0.85 ensures volume bars NEVER cover more than 15% of the chart dialog box (< 20% limit)
+      try {
+        volumeSeries.priceScale().applyOptions({
+          scaleMargins: {
+            top: 0.85,
+            bottom: 0
+          }
+        });
+      } catch (scaleErr) {
+        console.error('Error applying volume scale margins:', scaleErr);
+      }
 
       chartInstanceRef.current = chart;
       candleSeriesRef.current = candleSeries;
