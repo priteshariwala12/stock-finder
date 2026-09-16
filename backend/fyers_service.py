@@ -285,6 +285,32 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
     }
 
 
+def to_tradingview_symbol(s: str) -> str:
+    import re
+    clean = s.strip()
+    if clean == "NSE:NIFTY50-INDEX":
+        return "NSE:NIFTY"
+    if clean == "NSE:NIFTYBANK-INDEX":
+        return "NSE:BANKNIFTY"
+    if clean == "NSE:FINNIFTY-INDEX":
+        return "NSE:CNXFINANCE"
+    if clean == "BSE:SENSEX-INDEX":
+        return "BSE:SENSEX"
+    if "-INDEX" in clean:
+        return clean.replace("-INDEX", "")
+    if "-EQ" in clean:
+        return clean.replace("-EQ", "")
+    # Fyers option format: NSE:NIFTY2692223050CE -> TV format: NSE:NIFTY260922C23050
+    m = re.match(r"^(NSE|BSE):([A-Z]+)(\d{2})([1-9OND])(\d{2})(\d+)(CE|PE)$", clean)
+    if m:
+        ex, root, yy, m_code, dd, strike, opt = m.groups()
+        month_map = {"1":"01","2":"02","3":"03","4":"04","5":"05","6":"06","7":"07","8":"08","9":"09","O":"10","N":"11","D":"12"}
+        mm = month_map.get(m_code, "09")
+        opt_code = "C" if opt == "CE" else "P"
+        return f"{ex}:{root}{yy}{mm}{dd}{opt_code}{strike}"
+    return clean
+
+
 def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3) -> Dict[str, Any]:
     """
     Fetches official 100% real-time OHLC candlestick data from Fyers API v3 (Zero-Delay).
@@ -313,10 +339,12 @@ def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3)
         "cont_flag": "1"
     }
 
+    tv_sym = to_tradingview_symbol(fyers_sym)
+    fyers_tv_url = f"https://trade.fyers.in/?symbol={fyers_sym}"
+    tradingview_url = f"https://www.tradingview.com/chart/?symbol={tv_sym}"
+
     try:
         resp = fyers.history(data=data)
-        fyers_tv_url = f"https://trade.fyers.in/?symbol={fyers_sym}"
-        tradingview_url = f"https://www.tradingview.com/chart/?symbol={fyers_sym}"
 
         if not resp or resp.get("s") != "ok":
             raw_msg = resp.get("message") if resp else ""
@@ -359,7 +387,7 @@ def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3)
             "status": "error", 
             "message": str(e), 
             "symbol": fyers_sym,
-            "fyers_tv_url": f"https://trade.fyers.in/?symbol={fyers_sym}",
-            "tradingview_url": f"https://www.tradingview.com/chart/?symbol={fyers_sym}"
+            "fyers_tv_url": fyers_tv_url,
+            "tradingview_url": tradingview_url
         }
 

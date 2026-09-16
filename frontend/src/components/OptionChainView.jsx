@@ -123,11 +123,13 @@ export default function OptionChainView({ onSelectStock }) {
   }, []);
 
   // 2. Fetch Option Chain data for selected symbol & expiry
-  const fetchOptionChain = async (symbolToFetch = selectedSymbol, expiryToFetch = selectedExpiry, force = false) => {
+  const fetchOptionChain = async (symbolToFetch = selectedSymbol, expiryToFetch = selectedExpiry, force = false, isSilent = false) => {
     if (!symbolToFetch) return;
-    if (force) setIsRefreshing(true);
-    else setIsLoading(true);
-    setError(null);
+    if (!isSilent) {
+      if (force) setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
+    }
 
     try {
       const params = new URLSearchParams();
@@ -148,10 +150,14 @@ export default function OptionChainView({ onSelectStock }) {
       }
     } catch (err) {
       console.error('Option chain fetch error:', err);
-      setError('Unable to load option chain data. Retrying with cache...');
+      if (!isSilent) {
+        setError('Unable to load option chain data. Retrying with cache...');
+      }
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (!isSilent) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -160,12 +166,12 @@ export default function OptionChainView({ onSelectStock }) {
     fetchOptionChain(selectedSymbol, selectedExpiry);
   }, [selectedSymbol, selectedExpiry]);
 
-  // Real-time 1-Second Auto-refresh powered by Fyers API v3
+  // Real-time 1-Second Auto-refresh powered by Fyers API v3 (Silent background update, no button blinking)
   useEffect(() => {
     if (!autoRefresh) return;
     const intervalMs = Math.max(1, refreshInterval) * 1000;
     const interval = setInterval(() => {
-      fetchOptionChain(selectedSymbol, selectedExpiry, true);
+      fetchOptionChain(selectedSymbol, selectedExpiry, true, true);
     }, intervalMs);
     return () => clearInterval(interval);
   }, [autoRefresh, refreshInterval, selectedSymbol, selectedExpiry]);

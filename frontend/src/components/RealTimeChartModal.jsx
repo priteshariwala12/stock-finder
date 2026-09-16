@@ -42,6 +42,31 @@ export class ChartErrorBoundary extends Component {
   }
 }
 
+export function toTradingViewSymbol(sym) {
+  if (!sym) return 'NSE:NIFTY';
+  const clean = sym.trim();
+  if (clean === 'NSE:NIFTY50-INDEX') return 'NSE:NIFTY';
+  if (clean === 'NSE:NIFTYBANK-INDEX') return 'NSE:BANKNIFTY';
+  if (clean === 'NSE:FINNIFTY-INDEX') return 'NSE:CNXFINANCE';
+  if (clean === 'BSE:SENSEX-INDEX') return 'BSE:SENSEX';
+  if (clean.includes('-INDEX')) {
+    return clean.replace('-INDEX', '');
+  }
+  if (clean.includes('-EQ')) {
+    return clean.replace('-EQ', '');
+  }
+  // Fyers option format: NSE:NIFTY2692223050CE -> TV format: NSE:NIFTY260922C23050
+  const m = clean.match(/^(NSE|BSE):([A-Z]+)(\d{2})([1-9OND])(\d{2})(\d+)(CE|PE)$/);
+  if (m) {
+    const [, ex, root, yy, mCode, dd, strike, opt] = m;
+    const monthMap = { '1': '01', '2': '02', '3': '03', '4': '04', '5': '05', '6': '06', '7': '07', '8': '08', '9': '09', 'O': '10', 'N': '11', 'D': '12' };
+    const mm = monthMap[mCode] || '09';
+    const optCode = opt === 'CE' ? 'C' : 'P';
+    return `${ex}:${root}${yy}${mm}${dd}${optCode}${strike}`;
+  }
+  return clean;
+}
+
 function RealTimeChartModalInner({
   isOpen,
   onClose,
@@ -57,6 +82,7 @@ function RealTimeChartModalInner({
 
   // Resolve official Fyers symbol
   const effectiveSymbol = symbol || 'NSE:NIFTY50-INDEX';
+  const tvSymbol = toTradingViewSymbol(effectiveSymbol);
 
   const [resolution, setResolution] = useState('5'); // Default 5-min
   const [showVolume, setShowVolume] = useState(true);
@@ -66,8 +92,8 @@ function RealTimeChartModalInner({
   const [liveInfo, setLiveInfo] = useState({
     ltp: initialLtp || null,
     change: null,
-    fyersTvUrl: `https://trade.fyers.in/?symbol=${effectiveSymbol}`,
-    tvUrl: `https://www.tradingview.com/chart/?symbol=${effectiveSymbol}`
+    fyersTvUrl: `https://trade.fyers.in/?symbol=${encodeURIComponent(effectiveSymbol)}`,
+    tvUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`
   });
 
   // 1. Fetch candles from our backend
@@ -127,7 +153,7 @@ function RealTimeChartModalInner({
             ...prev,
             ltp: lastCandle.close,
             fyersTvUrl: data.fyers_tv_url || prev.fyersTvUrl,
-            tvUrl: data.tradingview_url || prev.tvUrl
+            tvUrl: data.tradingview_url || `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`
           }));
         }
       } else {
@@ -138,7 +164,7 @@ function RealTimeChartModalInner({
     } finally {
       if (!isPolling) setIsLoading(false);
     }
-  }, [effectiveSymbol, resolution]);
+  }, [effectiveSymbol, tvSymbol, resolution]);
 
   // 2. Initialize Lightweight Chart canvas
   useEffect(() => {
