@@ -17,6 +17,31 @@ import LearnView from './components/LearnView';
 import OptionChainView from './components/OptionChainView';
 import { Filter } from 'lucide-react';
 
+export const VALID_VIEWS = [
+  'option_chain',
+  'screener',
+  'query_screener',
+  'market_picture',
+  'iv_analysis',
+  'sector_flow',
+  'heatmap',
+  'recommendations',
+  'learn'
+];
+
+export const getInitialView = () => {
+  try {
+    const hash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (hash && VALID_VIEWS.includes(hash)) {
+      return hash;
+    }
+  } catch (e) {
+    console.error('Failed to parse URL hash:', e);
+  }
+  // Option Chain is the default homepage on opening website
+  return 'option_chain';
+};
+
 const INITIAL_FILTERS = {
   search: '',
   sectors: [],
@@ -86,11 +111,46 @@ export default function App() {
   const [isFnoOnly, setIsFnoOnly] = useState(false);
   const [activeSegment, setActiveSegment] = useState('all');
 
-  // Navigation View & Theme State
-  const [currentView, setCurrentView] = useState('screener'); 
-  // 'screener', 'recommendations', 'market_picture', 'iv_analysis', 'sector_flow', 'heatmap'
-  
+  // Navigation View & Theme State (Default: Option Chain as Homepage)
+  const [currentView, setCurrentView] = useState(getInitialView);
   const [isNavOpen, setIsNavOpen] = useState(false);
+
+  // Sync initial URL hash and listen to browser Back / Forward buttons & Refresh
+  useEffect(() => {
+    // 1. If URL has no hash on first visit, set hash to option_chain
+    const hash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (!hash || !VALID_VIEWS.includes(hash)) {
+      window.history.replaceState(null, '', `#${currentView}`);
+    }
+
+    // 2. Listen to browser Back and Forward navigation events (Backward / Forward history)
+    const handleNavigation = () => {
+      const activeHash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (activeHash && VALID_VIEWS.includes(activeHash)) {
+        setCurrentView(activeHash);
+      } else if (!activeHash) {
+        setCurrentView('option_chain');
+      }
+    };
+
+    window.addEventListener('hashchange', handleNavigation);
+    window.addEventListener('popstate', handleNavigation);
+
+    return () => {
+      window.removeEventListener('hashchange', handleNavigation);
+      window.removeEventListener('popstate', handleNavigation);
+    };
+  }, []);
+
+  // 3. Keep URL hash in sync whenever currentView changes (creates real browser history entries)
+  useEffect(() => {
+    if (currentView) {
+      const activeHash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (activeHash !== currentView) {
+        window.location.hash = currentView;
+      }
+    }
+  }, [currentView]);
 
   const [currentTheme, setCurrentTheme] = useState(() => {
     try {
@@ -431,6 +491,7 @@ export default function App() {
       {/* Top Header Bar with Live Indices, Theme Picker & Auth */}
       <TopHeader
         currentView={currentView}
+        onSelectView={handleNavSelect}
         onToggleNav={() => setIsNavOpen(prev => !prev)}
         marketSummary={marketSummary}
         onOpenSync={() => setIsSyncModalOpen(true)}

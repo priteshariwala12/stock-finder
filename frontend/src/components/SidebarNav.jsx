@@ -27,8 +27,16 @@ export default function SidebarNav({
   if (!isOpen) return null;
   const navItems = [
     {
+      id: 'option_chain',
+      label: 'Option Chain (Home)',
+      icon: Activity,
+      badge: 'LIVE',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+      description: 'NSE & BSE Realtime Option Chain & Greeks'
+    },
+    {
       id: 'screener',
-      label: 'Screener',
+      label: 'Equity Screener',
       icon: Search,
       badge: null,
       description: 'Multi-parameter Equity & Technical Scanner'
@@ -48,14 +56,6 @@ export default function SidebarNav({
       badge: 'LIVE',
       badgeColor: 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30',
       description: 'Top Gainers, Losers & Volume Shockers'
-    },
-    {
-      id: 'option_chain',
-      label: 'Option Chain',
-      icon: Activity,
-      badge: 'LIVE',
-      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-      description: 'NSE & BSE Realtime Option Chain & Greeks'
     },
     {
       id: 'iv_analysis',

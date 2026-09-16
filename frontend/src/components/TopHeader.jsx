@@ -27,6 +27,7 @@ const VIEW_TITLES = {
 
 export default function TopHeader({
   currentView,
+  onSelectView,
   onToggleNav,
   onOpenMobileMenu,
   marketSummary,
@@ -41,7 +42,7 @@ export default function TopHeader({
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const viewInfo = VIEW_TITLES[currentView] || VIEW_TITLES.screener;
+  const viewInfo = VIEW_TITLES[currentView] || VIEW_TITLES.option_chain || VIEW_TITLES.screener;
   const indices = marketSummary?.indices || [
     { name: 'NIFTY 50', value: '23,398.10', change: -80.20, pct_change: -0.34 },
     { name: 'SENSEX', value: '76,825.40', change: -245.50, pct_change: -0.32 },
@@ -53,18 +54,44 @@ export default function TopHeader({
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between select-none z-30 shrink-0 sticky top-0">
-      {/* Left: Hamburger menu toggle & Active view info */}
+      {/* Left: Hamburger menu toggle, Brand/View & Quick Switcher */}
       <div className="flex items-center gap-3">
         <button
           onClick={handleMenuClick}
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all shadow-sm"
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all shadow-sm cursor-pointer"
           title="Open Navigation Menu"
         >
           <Menu className="w-4 h-4 text-emerald-400" />
           <span className="text-xs font-semibold">Menu</span>
         </button>
 
-        <div className="flex flex-col">
+        {/* Quick Primary Tabs: Option Chain (Home) & Screener */}
+        <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800">
+          <button
+            onClick={() => onSelectView?.('option_chain')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === 'option_chain'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Go to Option Chain (Homepage)"
+          >
+            <span>⚡ Option Chain</span>
+          </button>
+          <button
+            onClick={() => onSelectView?.('screener')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === 'screener'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Go to Equity Screener"
+          >
+            <span>📊 Screener</span>
+          </button>
+        </div>
+
+        <div className="hidden xl:flex flex-col">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
               {viewInfo.title}
@@ -73,7 +100,7 @@ export default function TopHeader({
               LIVE
             </span>
           </div>
-          <span className="hidden sm:block text-[11px] text-slate-400">
+          <span className="text-[11px] text-slate-400 truncate max-w-xs">
             {viewInfo.desc}
           </span>
         </div>
