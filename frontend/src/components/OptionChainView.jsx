@@ -187,12 +187,25 @@ export default function OptionChainView({ onSelectStock }) {
     loadSymbols();
   }, []);
 
+  const lastFetchedRef = useRef({ symbol: '', expiry: '' });
+
   // 2. Fetch Option Chain data for selected symbol & expiry
   const fetchOptionChain = async (symbolToFetch = selectedSymbol, expiryToFetch = selectedExpiry, force = false, isSilent = false) => {
     if (!symbolToFetch) return;
+
+    // Avoid redundant duplicate fetch if parameters haven't changed (e.g. from setting selectedExpiry on mount)
+    if (!force && lastFetchedRef.current.symbol === symbolToFetch && lastFetchedRef.current.expiry === expiryToFetch) {
+      return;
+    }
+
+    const hasDataForCurrentSymbol = chainData && chainData.symbol === symbolToFetch;
+
     if (!isSilent) {
-      if (force) setIsRefreshing(true);
-      else setIsLoading(true);
+      if (force || hasDataForCurrentSymbol) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
       setError(null);
     }
 
@@ -208,6 +221,9 @@ export default function OptionChainView({ onSelectStock }) {
       }
       const data = await res.json();
       setChainData(data);
+
+      const loadedExpiry = expiryToFetch || data.selected_expiry || '';
+      lastFetchedRef.current = { symbol: symbolToFetch, expiry: loadedExpiry };
 
       // Set expiry if not set
       if (!expiryToFetch && data.selected_expiry) {
@@ -398,6 +414,8 @@ export default function OptionChainView({ onSelectStock }) {
   };
 
   const handleSelectSymbol = (sym) => {
+    if (sym === selectedSymbol) return;
+    setChainData(null);
     setSelectedSymbol(sym);
     setSelectedExpiry(''); // reset expiry to pick nearest
     setIsSearchOpen(false);
@@ -796,12 +814,20 @@ export default function OptionChainView({ onSelectStock }) {
             ref={tableContainerRef}
             tabIndex={0}
           >
-            {isLoading && (
-              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] z-20 flex items-center justify-center">
+            {/* Initial full loading overlay - only shown when NO data is rendered yet */}
+            {isLoading && !chainData && (
+              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center min-h-[360px] gap-3">
                 <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-2xl">
                   <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-xs font-semibold">Streaming authentic option chain from NSE...</span>
                 </div>
+              </div>
+            )}
+
+            {/* Non-blocking top progress line during background refreshes */}
+            {isRefreshing && (
+              <div className="sticky top-0 left-0 right-0 z-30 h-1 bg-slate-800/80 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-indigo-500 animate-pulse w-full"></div>
               </div>
             )}
 
