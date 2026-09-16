@@ -45,10 +45,13 @@ export class ChartErrorBoundary extends Component {
 export function toTradingViewSymbol(sym) {
   if (!sym) return 'NSE:NIFTY';
   const clean = sym.trim();
-  if (clean === 'NSE:NIFTY50-INDEX') return 'NSE:NIFTY';
-  if (clean === 'NSE:NIFTYBANK-INDEX') return 'NSE:BANKNIFTY';
-  if (clean === 'NSE:FINNIFTY-INDEX') return 'NSE:CNXFINANCE';
-  if (clean === 'BSE:SENSEX-INDEX') return 'BSE:SENSEX';
+  if (clean === 'NSE:NIFTY50-INDEX' || clean === 'NSE:NIFTY-INDEX' || clean === 'NIFTY') return 'NSE:NIFTY';
+  if (clean === 'NSE:NIFTYBANK-INDEX' || clean === 'NSE:BANKNIFTY-INDEX' || clean === 'BANKNIFTY') return 'NSE:BANKNIFTY';
+  if (clean === 'NSE:FINNIFTY-INDEX' || clean === 'FINNIFTY') return 'NSE:CNXFINANCE';
+  if (clean === 'NSE:MIDCPNIFTY-INDEX' || clean === 'MIDCPNIFTY') return 'NSE:MIDCPNIFTY';
+  if (clean === 'NSE:NIFTYNEXT50-INDEX' || clean === 'NSE:NIFTYNXT50-INDEX' || clean === 'NIFTYNXT50') return 'NSE:NIFTYNEXT50';
+  if (clean === 'BSE:SENSEX-INDEX' || clean === 'SENSEX') return 'BSE:SENSEX';
+  if (clean === 'BSE:BANKEX-INDEX' || clean === 'BANKEX') return 'BSE:BANKEX';
   if (clean.includes('-INDEX')) {
     return clean.replace('-INDEX', '');
   }
@@ -73,7 +76,9 @@ function RealTimeChartModalInner({
   symbol,
   contractTitle,
   initialLtp,
-  isOption = false
+  isOption = false,
+  underlyingChange = null,
+  underlyingPchange = null
 }) {
   const chartContainerRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -91,7 +96,8 @@ function RealTimeChartModalInner({
   const [hoveredCandle, setHoveredCandle] = useState(null);
   const [liveInfo, setLiveInfo] = useState({
     ltp: initialLtp || null,
-    change: null,
+    change: underlyingChange,
+    pchange: underlyingPchange,
     fyersTvUrl: `https://trade.fyers.in/?symbol=${encodeURIComponent(effectiveSymbol)}`,
     tvUrl: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`
   });
@@ -362,6 +368,16 @@ function RealTimeChartModalInner({
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400 font-medium">LTP:</span>
                 <span className="text-lg font-black font-mono text-emerald-400">₹{liveInfo.ltp.toLocaleString('en-IN')}</span>
+                {liveInfo.change !== null && liveInfo.change !== undefined && (
+                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border shadow-sm ${
+                    liveInfo.change >= 0 
+                      ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' 
+                      : 'text-rose-400 bg-rose-500/15 border-rose-500/30'
+                  }`}>
+                    {liveInfo.change >= 0 ? '+' : ''}{liveInfo.change}
+                    {liveInfo.pchange !== null && liveInfo.pchange !== undefined && ` (${liveInfo.pchange >= 0 ? '+' : ''}${liveInfo.pchange}%)`}
+                  </span>
+                )}
               </div>
             )
           )}

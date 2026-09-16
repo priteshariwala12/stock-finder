@@ -436,8 +436,22 @@ def build_option_chain_response(
     available_expiries: List[str], 
     spot: float, 
     raw_strikes: List[Dict[str, Any]], 
-    is_cached: bool = False
+    is_cached: bool = False,
+    underlying_change: float = 0.0,
+    underlying_pchange: float = 0.0
 ) -> Dict[str, Any]:
+    if underlying_change == 0.0 and underlying_pchange == 0.0:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT change_1d FROM stocks WHERE symbol = ?", (symbol.upper(),))
+            stk_r = c.fetchone()
+            conn.close()
+            if stk_r and stk_r[0] is not None:
+                underlying_pchange = float(stk_r[0])
+                underlying_change = round((spot * underlying_pchange) / 100.0, 2)
+        except Exception:
+            pass
     """Formats standardized, institutional-grade Option Chain response."""
     m_info = check_is_market_open()
 

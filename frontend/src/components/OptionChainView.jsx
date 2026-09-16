@@ -40,10 +40,71 @@ export default function OptionChainView({ onSelectStock }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(1); // 1-second default real-time refresh
-  const [error, setError] = useState(null);
-  const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(false);
-  const [paperLegs, setPaperLegs] = useState([]);
+  const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('stock_finder_paper_terminal_open');
+      if (saved !== null) return saved === 'true';
+      const legs = localStorage.getItem('stock_finder_paper_legs');
+      const trades = localStorage.getItem('stock_finder_paper_trades');
+      return (legs && JSON.parse(legs).length > 0) || (trades && JSON.parse(trades).length > 0);
+    } catch {
+      return false;
+    }
+  });
+
+  const [paperLegs, setPaperLegs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('stock_finder_paper_legs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [deployedTradesCount, setDeployedTradesCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('stock_finder_paper_trades');
+      return saved ? JSON.parse(saved).length : 0;
+    } catch {
+      return 0;
+    }
+  });
+
   const [hoveredStrike, setHoveredStrike] = useState(null);
+
+  // Sync paperLegs to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('stock_finder_paper_legs', JSON.stringify(paperLegs));
+    } catch (e) {
+      console.error('Failed to save paper legs:', e);
+    }
+  }, [paperLegs]);
+
+  // Sync isPaperTerminalOpen to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('stock_finder_paper_terminal_open', String(isPaperTerminalOpen));
+    } catch (e) {
+      console.error('Failed to save terminal open state:', e);
+    }
+  }, [isPaperTerminalOpen]);
+
+  // Keep deployedTradesCount updated
+  useEffect(() => {
+    const updateTradesCount = () => {
+      try {
+        const saved = localStorage.getItem('stock_finder_paper_trades');
+        setDeployedTradesCount(saved ? JSON.parse(saved).length : 0);
+      } catch {}
+    };
+    window.addEventListener('storage', updateTradesCount);
+    const interval = setInterval(updateTradesCount, 1500);
+    return () => {
+      window.removeEventListener('storage', updateTradesCount);
+      clearInterval(interval);
+    };
+  }, []);
 
   const searchContainerRef = useRef(null);
   const atmRowRef = useRef(null);
@@ -254,10 +315,15 @@ export default function OptionChainView({ onSelectStock }) {
     let chartSym = sideData?.tv_symbol;
     if (!chartSym && isOption) {
       chartSym = `NSE:${selectedSymbol}${strike}${optType}`;
-    } else if (!chartSym) {
       // Spot underlying
       const isIndex = POPULAR_INDICES.some(idx => idx.symbol === selectedSymbol);
       if (selectedSymbol === 'SENSEX') chartSym = 'BSE:SENSEX-INDEX';
+      else if (selectedSymbol === 'NIFTY') chartSym = 'NSE:NIFTY50-INDEX';
+      else if (selectedSymbol === 'BANKNIFTY') chartSym = 'NSE:NIFTYBANK-INDEX';
+      else if (selectedSymbol === 'FINNIFTY') chartSym = 'NSE:FINNIFTY-INDEX';
+      else if (selectedSymbol === 'MIDCPNIFTY') chartSym = 'NSE:MIDCPNIFTY-INDEX';
+      else if (selectedSymbol === 'NIFTYNXT50') chartSym = 'NSE:NIFTYNEXT50-INDEX';
+      else if (selectedSymbol === 'BANKEX') chartSym = 'BSE:BANKEX-INDEX';
       else if (isIndex) chartSym = `NSE:${selectedSymbol}-INDEX`;
       else chartSym = `NSE:${selectedSymbol}-EQ`;
     }
@@ -265,7 +331,7 @@ export default function OptionChainView({ onSelectStock }) {
     const title = sideData?.contract_title || (
       isOption 
         ? `${selectedSymbol} ₹${strike?.toLocaleString('en-IN')} ${optType}`
-        : `${selectedSymbol} Spot`
+        : `${chainData?.name || selectedSymbol} Spot`
     );
 
     setChartModal({
@@ -273,7 +339,9 @@ export default function OptionChainView({ onSelectStock }) {
       symbol: chartSym,
       contractTitle: title,
       initialLtp: sideData?.ltp || chainData?.underlying_price || null,
-      isOption
+      isOption,
+      underlyingChange: sideData?.change !== undefined ? sideData.change : chainData?.underlying_change,
+      underlyingPchange: sideData?.pchange !== undefined ? sideData.pchange : chainData?.underlying_pchange
     });
   };
 
@@ -582,7 +650,7 @@ export default function OptionChainView({ onSelectStock }) {
               <button
                 onClick={() => setIsPaperTerminalOpen(!isPaperTerminalOpen)}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-                  isPaperTerminalOpen || paperLegs.length > 0
+                  isPaperTerminalOpen || paperLegs.length > 0 || deployedTradesCount > 0
                     ? 'bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white border-emerald-400/60 shadow-emerald-500/20'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                 }`}
@@ -590,9 +658,9 @@ export default function OptionChainView({ onSelectStock }) {
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300" />
                 <span>Paper Trading</span>
-                {paperLegs.length > 0 && (
+                {(paperLegs.length > 0 || deployedTradesCount > 0) && (
                   <span className="px-1.5 py-0.2 rounded-full bg-white text-indigo-900 text-[10px] font-black">
-                    {paperLegs.length}
+                    {deployedTradesCount > 0 ? `${deployedTradesCount} Pos` : `${paperLegs.length}`}
                   </span>
                 )}
               </button>
@@ -651,19 +719,37 @@ export default function OptionChainView({ onSelectStock }) {
             {/* Underlying Spot Price (Clickable to open Real-Time Chart) */}
             <div 
               onClick={() => openChartModal(null, null)}
-              className="flex items-baseline gap-2 cursor-pointer group/spot hover:opacity-90 transition-all"
+              className="flex items-center gap-2.5 cursor-pointer group/spot hover:opacity-90 transition-all flex-wrap"
               title={`View ${chainData?.name || selectedSymbol} Real-Time 0-Delay Candlestick Chart`}
             >
-              <span className="text-sm font-black text-white tracking-tight group-hover/spot:text-indigo-300 flex items-center gap-1">
-                {chainData?.name || selectedSymbol}
-                <BarChart2 className="w-3 h-3 text-indigo-400 inline opacity-70 group-hover/spot:opacity-100" />
-              </span>
-              <span className="text-lg font-black text-white font-mono">
-                ₹{chainData?.underlying_price?.toLocaleString('en-IN') || '—'}
-              </span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                Lot: {chainData?.lot_size ? chainData.lot_size.toLocaleString('en-IN') : '—'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-white tracking-tight group-hover/spot:text-indigo-300 flex items-center gap-1">
+                  {chainData?.name || selectedSymbol}
+                  <BarChart2 className="w-3.5 h-3.5 text-indigo-400 inline opacity-70 group-hover/spot:opacity-100" />
+                </span>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  Lot: {chainData?.lot_size ? chainData.lot_size.toLocaleString('en-IN') : '—'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-black text-white font-mono">
+                  ₹{chainData?.underlying_price?.toLocaleString('en-IN') || '—'}
+                </span>
+
+                {/* Points and percentages of change from last session beside specific symbol */}
+                {chainData?.underlying_change !== undefined && chainData?.underlying_change !== null && (
+                  <span className={`inline-flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-lg border shadow-sm ${
+                    chainData.underlying_change >= 0 
+                      ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30 shadow-emerald-500/10' 
+                      : 'text-rose-400 bg-rose-500/15 border-rose-500/30 shadow-rose-500/10'
+                  }`}>
+                    {chainData.underlying_change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span>{chainData.underlying_change >= 0 ? '+' : ''}{chainData.underlying_change.toLocaleString('en-IN')}</span>
+                    <span>({chainData.underlying_pchange >= 0 ? '+' : ''}{chainData.underlying_pchange}%)</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Session Note */}

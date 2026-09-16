@@ -25,7 +25,22 @@ export default function PaperTradingTerminal({
   quotesMap = {},
   isDocked = false
 }) {
-  const [activeTab, setActiveTab] = useState('builder'); // 'builder' | 'deployed'
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const trades = saved ? JSON.parse(saved) : [];
+      return activeLegs.length === 0 && trades.length > 0 ? 'deployed' : 'builder';
+    } catch {
+      return 'builder';
+    }
+  });
+
+  // Switch to builder tab automatically when legs are added
+  useEffect(() => {
+    if (activeLegs.length > 0) {
+      setActiveTab('builder');
+    }
+  }, [activeLegs.length]);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [deployedTrades, setDeployedTrades] = useState(() => {

@@ -27,9 +27,29 @@ FYERS_INDEX_MAP = {
 
 def to_fyers_symbol(symbol: str) -> str:
     s = symbol.strip().upper()
+    # Normalize clean symbol without exchange prefixes or suffixes
+    clean = s.replace("NSE:", "").replace("BSE:", "").replace("-INDEX", "").replace("-EQ", "")
+    
+    if clean in ("NIFTY", "NIFTY50"):
+        return FYERS_INDEX_MAP["NIFTY"]
+    elif clean in ("BANKNIFTY", "NIFTYBANK"):
+        return FYERS_INDEX_MAP["BANKNIFTY"]
+    elif clean == "FINNIFTY":
+        return FYERS_INDEX_MAP["FINNIFTY"]
+    elif clean == "MIDCPNIFTY":
+        return FYERS_INDEX_MAP["MIDCPNIFTY"]
+    elif clean in ("NIFTYNXT50", "NIFTYNEXT50"):
+        return FYERS_INDEX_MAP["NIFTYNXT50"]
+    elif clean == "SENSEX":
+        return FYERS_INDEX_MAP["SENSEX"]
+    elif clean == "BANKEX":
+        return FYERS_INDEX_MAP["BANKEX"]
+    
     if s in FYERS_INDEX_MAP:
         return FYERS_INDEX_MAP[s]
-    return f"NSE:{s}-EQ"
+    if s.startswith("NSE:") or s.startswith("BSE:"):
+        return s
+    return f"NSE:{clean}-EQ"
 
 def get_auth_url() -> str:
     """Generate official Fyers login URL to obtain auth_code"""
@@ -124,6 +144,8 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
     # 1. First item is the Underlying Instrument Spot Info
     spot_item = options_chain[0]
     spot_price = float(spot_item.get("ltp") or 0.0)
+    spot_change = float(spot_item.get("ltpch") or 0.0)
+    spot_pchange = float(spot_item.get("ltpchp") or 0.0)
     
     # Expiry list
     exp_list = data.get("expiryData", [])
@@ -262,6 +284,8 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
         "is_index": symbol.upper() in FYERS_INDEX_MAP,
         "exchange": "BSE" if symbol.upper() == "SENSEX" else "NSE",
         "underlying_price": round(spot_price, 2),
+        "underlying_change": round(spot_change, 2),
+        "underlying_pchange": round(spot_pchange, 2),
         "selected_expiry": selected_expiry,
         "available_expiries": available_expiries,
         "market_status": "LIVE",
@@ -288,9 +312,9 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
 def to_tradingview_symbol(s: str) -> str:
     import re
     clean = s.strip()
-    if clean == "NSE:NIFTY50-INDEX":
+    if clean == "NSE:NIFTY50-INDEX" or clean == "NSE:NIFTY-INDEX":
         return "NSE:NIFTY"
-    if clean == "NSE:NIFTYBANK-INDEX":
+    if clean == "NSE:NIFTYBANK-INDEX" or clean == "NSE:BANKNIFTY-INDEX":
         return "NSE:BANKNIFTY"
     if clean == "NSE:FINNIFTY-INDEX":
         return "NSE:CNXFINANCE"
@@ -304,7 +328,7 @@ def to_tradingview_symbol(s: str) -> str:
     m = re.match(r"^(NSE|BSE):([A-Z]+)(\d{2})([1-9OND])(\d{2})(\d+)(CE|PE)$", clean)
     if m:
         ex, root, yy, m_code, dd, strike, opt = m.groups()
-        month_map = {"1":"01","2":"02","3":"03","4":"04","5":"05","6":"06","7":"07","8":"08","9":"09","O":"10","N":"11","D":"12"}
+        month_map = {"1": "01", "2": "02", "3": "03", "4": "04", "5": "05", "6": "06", "7": "07", "8": "08", "9": "09", "O": "10", "N": "11", "D": "12"}
         mm = month_map.get(m_code, "09")
         opt_code = "C" if opt == "CE" else "P"
         return f"{ex}:{root}{yy}{mm}{dd}{opt_code}{strike}"
@@ -320,9 +344,7 @@ def fetch_candlestick_history(symbol: str, resolution: str = "5", days: int = 3)
     if not fyers:
         return {"status": "error", "message": "Fyers not authenticated"}
 
-    fyers_sym = symbol.strip()
-    if not (fyers_sym.startswith("NSE:") or fyers_sym.startswith("BSE:")):
-        fyers_sym = to_fyers_symbol(fyers_sym)
+    fyers_sym = to_fyers_symbol(symbol.strip())
 
     now = datetime.now()
     range_to = now.strftime("%Y-%m-%d")
