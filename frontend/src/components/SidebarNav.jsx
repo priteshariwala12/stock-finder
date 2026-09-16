@@ -121,21 +121,30 @@ export default function SidebarNav({
 
       {/* Slide-over Drawer Panel */}
       <aside className="relative w-72 max-w-[85vw] h-full z-10 shadow-2xl bg-slate-900 border-r border-slate-800 flex flex-col animate-in slide-in-from-left duration-200">
-        {/* Brand Header */}
+        {/* Brand Header - Clickable to Home Page */}
         <div className="h-14 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-indigo-600 flex items-center justify-center font-black text-white shadow-md shadow-emerald-500/20 shrink-0">
+          <button
+            onClick={() => handleItemClick('option_chain')}
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-95 active:scale-95 transition-all text-left group"
+            title="Stock Finder Pro - Click to go to Home Page"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-indigo-600 flex items-center justify-center font-black text-white shadow-md shadow-emerald-500/20 group-hover:shadow-emerald-500/40 group-hover:scale-105 transition-all shrink-0">
               <TrendingUp className="w-4 h-4 text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-black tracking-wider text-slate-100 uppercase">
-                STOCK<span className="text-emerald-400">FINDER</span>
-              </span>
-              <span className="text-[9px] text-slate-500 font-mono tracking-tight -mt-0.5">
-                PRO TERMINAL
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-black tracking-wider text-slate-100 uppercase group-hover:text-emerald-300 transition-colors">
+                  STOCK<span className="text-emerald-400">FINDER</span>
+                </span>
+                <span className="px-1 py-0.2 text-[8px] font-black rounded bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                  PRO
+                </span>
+              </div>
+              <span className="text-[9px] text-slate-400 font-medium tracking-tight -mt-0.5 group-hover:text-slate-300">
+                CLICK FOR HOME
               </span>
             </div>
-          </div>
+          </button>
 
           <button
             onClick={onClose}

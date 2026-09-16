@@ -54,19 +54,50 @@ export default function TopHeader({
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between select-none z-30 shrink-0 sticky top-0">
-      {/* Left: Hamburger menu toggle, Brand/View & Quick Switcher */}
-      <div className="flex items-center gap-3">
+      {/* Left: Brand Logo & Title (Clickable -> Drives to Home Page), Menu & Quick Switcher */}
+      <div className="flex items-center gap-2.5">
+        {/* Brand Identity / Logo - Clickable to Home Page */}
+        <button
+          onClick={() => onSelectView?.('option_chain')}
+          className="flex items-center gap-2 px-1.5 py-1 rounded-xl hover:bg-slate-800/80 active:scale-95 transition-all text-left cursor-pointer group shrink-0"
+          title="Stock Finder Pro - Click to go to Home Page"
+        >
+          {/* Brand Icon Badge */}
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-indigo-600 flex items-center justify-center font-black text-white shadow-md shadow-emerald-500/20 group-hover:shadow-emerald-500/40 group-hover:scale-105 transition-all shrink-0">
+            <TrendingUp className="w-4 h-4 text-white" />
+          </div>
+
+          {/* Brand Name & Tagline */}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1">
+              <span className="text-xs sm:text-sm font-black tracking-wider text-white uppercase group-hover:text-emerald-300 transition-colors">
+                STOCK<span className="text-emerald-400">FINDER</span>
+              </span>
+              <span className="px-1 py-0.2 text-[8px] sm:text-[9px] font-black rounded bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest">
+                PRO
+              </span>
+            </div>
+            <span className="text-[9px] text-slate-400 font-medium tracking-tight -mt-0.5 hidden xs:block group-hover:text-slate-300">
+              NSE & BSE Live
+            </span>
+          </div>
+        </button>
+
+        {/* Vertical Divider */}
+        <div className="h-6 w-px bg-slate-800 hidden sm:block"></div>
+
+        {/* Menu Toggle Button */}
         <button
           onClick={handleMenuClick}
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all shadow-sm cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all shadow-sm cursor-pointer shrink-0"
           title="Open Navigation Menu"
         >
           <Menu className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-semibold">Menu</span>
+          <span className="text-xs font-semibold hidden md:inline">Menu</span>
         </button>
 
         {/* Quick Primary Tabs: Option Chain (Home) & Screener */}
-        <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800 shrink-0">
           <button
             onClick={() => onSelectView?.('option_chain')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
