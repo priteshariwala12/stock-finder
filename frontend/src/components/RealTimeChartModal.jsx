@@ -59,6 +59,7 @@ function RealTimeChartModalInner({
   const effectiveSymbol = symbol || 'NSE:NIFTY50-INDEX';
 
   const [resolution, setResolution] = useState('5'); // Default 5-min
+  const [showVolume, setShowVolume] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hoveredCandle, setHoveredCandle] = useState(null);
@@ -113,7 +114,7 @@ function RealTimeChartModalInner({
             volumeSeriesRef.current.setData(unique.map(c => ({
               time: c.time,
               value: c.volume,
-              color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'
+              color: c.close >= c.open ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'
             })));
           }
         } catch (seriesErr) {
@@ -178,7 +179,17 @@ function RealTimeChartModalInner({
         },
         rightPriceScale: {
           borderColor: '#334155',
-          scaleMargins: { top: 0.1, bottom: 0.25 }
+          // Candles strictly stay in top 78% of chart, leaving bottom 22% empty
+          scaleMargins: { top: 0.06, bottom: 0.22 }
+        }
+      });
+
+      // Volume scale overlay strictly restricted to bottom 12% of chart
+      // Top 88% is completely blank so volume NEVER overlaps candles
+      chart.priceScale('').applyOptions({
+        scaleMargins: {
+          top: 0.88,
+          bottom: 0
         }
       });
 
@@ -192,10 +203,13 @@ function RealTimeChartModalInner({
       });
 
       // In lightweight-charts v5, use addSeries(HistogramSeries)
+      // lastValueVisible: false and priceLineVisible: false remove extra labels and lines
       const volumeSeries = chart.addSeries(HistogramSeries, {
         priceFormat: { type: 'volume' },
         priceScaleId: '',
-        scaleMargins: { top: 0.8, bottom: 0 }
+        lastValueVisible: false,
+        priceLineVisible: false,
+        visible: showVolume
       });
 
       chartInstanceRef.current = chart;
@@ -209,8 +223,12 @@ function RealTimeChartModalInner({
           return;
         }
         const data = param.seriesData.get(candleSeries);
+        const vData = param.seriesData.get(volumeSeries);
         if (data) {
-          setHoveredCandle(data);
+          setHoveredCandle({
+            ...data,
+            volume: vData?.value
+          });
         }
       });
 
@@ -290,6 +308,17 @@ function RealTimeChartModalInner({
               <span className="text-slate-400">H: <b className="text-emerald-400">₹{activeCandle.high?.toFixed(2)}</b></span>
               <span className="text-slate-400">L: <b className="text-rose-400">₹{activeCandle.low?.toFixed(2)}</b></span>
               <span className="text-slate-400">C: <b className="text-white">₹{activeCandle.close?.toFixed(2)}</b></span>
+              {activeCandle.volume !== undefined && activeCandle.volume !== null && (
+                <span className="text-slate-400 border-l border-slate-700 pl-2">
+                  Vol: <b className="text-indigo-300">
+                    {activeCandle.volume >= 1000000 
+                      ? `${(activeCandle.volume / 1000000).toFixed(2)}M`
+                      : (activeCandle.volume >= 1000 
+                          ? `${(activeCandle.volume / 1000).toFixed(1)}K` 
+                          : activeCandle.volume.toLocaleString('en-IN'))}
+                  </b>
+                </span>
+              )}
             </div>
           ) : (
             liveInfo.ltp && (
@@ -302,8 +331,8 @@ function RealTimeChartModalInner({
 
           {/* Timeframe Selector & Actions */}
           <div className="flex items-center gap-2">
-            {/* Resolutions */}
-            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+            {/* Resolutions & Volume Toggle */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs gap-1">
               {[
                 { label: '1m', val: '1' },
                 { label: '5m', val: '5' },
@@ -322,6 +351,26 @@ function RealTimeChartModalInner({
                   {t.label}
                 </button>
               ))}
+
+              <div className="w-[1px] h-4 bg-slate-800 mx-0.5" />
+
+              <button
+                onClick={() => {
+                  const next = !showVolume;
+                  setShowVolume(next);
+                  if (volumeSeriesRef.current) {
+                    volumeSeriesRef.current.applyOptions({ visible: next });
+                  }
+                }}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  showVolume
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+                title="Toggle volume bars at the bottom"
+              >
+                Vol: {showVolume ? 'ON' : 'OFF'}
+              </button>
             </div>
 
             {/* Fyers TradingView Popout Button */}
