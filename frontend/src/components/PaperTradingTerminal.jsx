@@ -22,7 +22,8 @@ export default function PaperTradingTerminal({
   symbol = 'NIFTY',
   expiry = '',
   lotSize = 50,
-  quotesMap = {} // Map of { "STRIKE_TYPE": currentLtp } for live updates
+  quotesMap = {},
+  isDocked = false
 }) {
   const [activeTab, setActiveTab] = useState('builder'); // 'builder' | 'deployed'
   const [isMinimized, setIsMinimized] = useState(false);
@@ -144,7 +145,7 @@ export default function PaperTradingTerminal({
     };
 
     setDeployedTrades(prev => [newTrade, ...prev]);
-    setDeployNotification(`Paper Strategy deployed with ${activeLegs.length} legs! Tracking live P&L.`);
+    setDeployNotification(`Paper Strategy deployed with ${activeLegs.length} legs!`);
     setTimeout(() => setDeployNotification(null), 4000);
     setActiveTab('deployed');
     // Clear builder legs
@@ -158,326 +159,282 @@ export default function PaperTradingTerminal({
 
   if (!isOpen) return null;
 
-  return (
-    <div 
-      className={`fixed z-40 bg-slate-900 border-t border-slate-700 shadow-2xl transition-all duration-200 flex flex-col font-sans ${
+  // Render container class
+  const containerClass = isDocked
+    ? 'w-full h-full bg-slate-900 flex flex-col font-sans overflow-hidden select-none border-0'
+    : `fixed z-40 bg-slate-900 border-t border-slate-700 shadow-2xl transition-all duration-200 flex flex-col font-sans ${
         isMaximized 
           ? 'inset-x-0 bottom-0 top-14 h-[calc(100vh-56px)]'
           : isMinimized 
             ? 'inset-x-0 bottom-0 h-12' 
             : 'inset-x-0 bottom-0 max-h-[75vh] h-[480px]'
-      }`}
-    >
-      {/* 1. Header Bar */}
-      <div className="h-12 px-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 select-none">
-        {/* Left: Brand / Title & Tab Switcher */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-emerald-500 to-indigo-600 flex items-center justify-center text-white shadow-sm">
-              <Zap className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-xs font-black text-white tracking-wide uppercase">
-              Paper Trading & Strategy Terminal
-            </span>
-          </div>
+      }`;
 
-          <span className="text-slate-700">|</span>
+  return (
+    <div className={containerClass}>
+      {/* 1. Header Bar */}
+      <div className="h-11 px-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 select-none">
+        {/* Left: Brand / Title & Tab Switcher */}
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-emerald-500 to-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+            <Zap className="w-3 h-3" />
+          </div>
+          <span className="text-[11px] font-black text-white tracking-wide uppercase hidden sm:inline">
+            Paper Strategy
+          </span>
 
           {/* Tab Selector */}
           <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
             <button
               onClick={() => setActiveTab('builder')}
-              className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 activeTab === 'builder'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span>Strategy Builder</span>
+              <span>Builder</span>
               {activeLegs.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-white/20 text-[10px] flex items-center justify-center font-mono">
+                <span className="w-3.5 h-3.5 rounded-full bg-white/25 text-[9px] flex items-center justify-center font-mono">
                   {activeLegs.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveTab('deployed')}
-              className={`px-2.5 py-1 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 activeTab === 'deployed'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span>Deployed Positions</span>
+              <span>Positions</span>
               {deployedTrades.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 text-[10px] flex items-center justify-center font-mono font-black">
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-400 text-slate-950 text-[9px] flex items-center justify-center font-mono font-black">
                   {deployedTrades.length}
                 </span>
               )}
             </button>
           </div>
-
-          {/* Underlier Info */}
-          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-mono">
-            <span className="font-bold text-slate-200">{symbol}</span>
-            <span className="text-slate-500">•</span>
-            <span className="text-slate-400">Spot: ₹{currentSpot.toLocaleString('en-IN')}</span>
-            {expiry && (
-              <>
-                <span className="text-slate-500">•</span>
-                <span className="text-cyan-400 font-semibold">{expiry}</span>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Right: Quick Controls */}
-        <div className="flex items-center gap-2">
-          {deployNotification && (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-pulse">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{deployNotification}</span>
-            </div>
-          )}
-
+        <div className="flex items-center gap-1.5">
           {activeTab === 'builder' && activeLegs.length > 0 && (
             <button
               onClick={handleClearAll}
-              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs transition-colors flex items-center gap-1 cursor-pointer"
+              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
               title="Clear all active strategy legs"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span className="hidden sm:inline">Reset</span>
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>Reset</span>
             </button>
           )}
 
-          <button
-            onClick={() => setIsMinimized(!isMinimized)}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title={isMinimized ? 'Expand' : 'Minimize'}
-          >
-            {isMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          {!isDocked && (
+            <>
+              <button
+                onClick={() => setIsMinimized(!isMinimized)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title={isMinimized ? 'Expand' : 'Minimize'}
+              >
+                {isMinimized ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
 
-          <button
-            onClick={() => {
-              setIsMaximized(!isMaximized);
-              setIsMinimized(false);
-            }}
-            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title={isMaximized ? 'Restore' : 'Maximize'}
-          >
-            {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+              <button
+                onClick={() => {
+                  setIsMaximized(!isMaximized);
+                  setIsMinimized(false);
+                }}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title={isMaximized ? 'Restore' : 'Maximize'}
+              >
+                {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
+            </>
+          )}
 
           <button
             onClick={onClose}
             className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-            title="Close Terminal"
+            title="Close Side Terminal"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* If minimized, hide body */}
-      {!isMinimized && (
+      {/* Body */}
+      {(!isMinimized || isDocked) && (
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-900">
           {activeTab === 'builder' ? (
-            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-              {/* Left Column: Active Legs & Metrics Bar */}
-              <div className="w-full lg:w-[48%] flex flex-col border-b lg:border-b-0 lg:border-r border-slate-800 p-3 overflow-y-auto">
-                {/* 1. Key Metrics Strip */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                  {/* Required Margin */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Required Margin
-                    </span>
-                    <span className="text-sm font-black font-mono text-cyan-300">
-                      ₹{requiredMargin.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-[9px] text-slate-500 block">NSE SPAN + Hedge</span>
-                  </div>
+            <div className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 flex flex-col`}>
+              {/* 1. Key Metrics Strip (2x2 Grid) */}
+              <div className="grid grid-cols-2 gap-2 shrink-0">
+                {/* Required Margin */}
+                <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Required Margin
+                  </span>
+                  <span className="text-xs sm:text-sm font-black font-mono text-cyan-300">
+                    ₹{requiredMargin.toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">NSE SPAN + Hedge</span>
+                </div>
 
-                  {/* Max Profit */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Max Profit
-                    </span>
-                    <span className="text-sm font-black font-mono text-emerald-400">
-                      {typeof metrics.maxProfit === 'number'
-                        ? `+₹${metrics.maxProfit.toLocaleString('en-IN')}`
-                        : metrics.maxProfit}
-                    </span>
-                    <span className="text-[9px] text-slate-500 block">{metrics.netType}</span>
-                  </div>
+                {/* Live PnL */}
+                <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Live Strategy P&L
+                  </span>
+                  <span className={`text-xs sm:text-sm font-black font-mono ${liveStrategyPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {liveStrategyPnl >= 0 ? '+' : ''}₹{liveStrategyPnl.toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">Realtime 1s</span>
+                </div>
 
-                  {/* Max Loss */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                {/* Max Profit */}
+                <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Max Profit
+                  </span>
+                  <span className="text-xs sm:text-sm font-black font-mono text-emerald-400">
+                    {typeof metrics.maxProfit === 'number'
+                      ? `+₹${metrics.maxProfit.toLocaleString('en-IN')}`
+                      : metrics.maxProfit}
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">{metrics.netType}</span>
+                </div>
+
+                {/* Max Loss & POP */}
+                <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       Max Loss
                     </span>
-                    <span className="text-sm font-black font-mono text-rose-400">
-                      {typeof metrics.maxLoss === 'number'
-                        ? `₹${metrics.maxLoss.toLocaleString('en-IN')}`
-                        : metrics.maxLoss}
+                    <span className={`text-[10px] font-black ${pop >= 55 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      POP {pop}%
                     </span>
-                    <span className="text-[9px] text-slate-500 block">Risk/Reward {metrics.riskRewardRatio}</span>
                   </div>
-
-                  {/* Probability of Profit (POP) */}
-                  <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Probability (POP)
-                    </span>
-                    <span className={`text-sm font-black font-mono ${pop >= 60 ? 'text-emerald-400' : pop >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
-                      {pop}%
-                    </span>
-                    {/* Visual Bar */}
-                    <div className="w-full h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
-                      <div 
-                        className={`h-full ${pop >= 60 ? 'bg-emerald-500' : pop >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                        style={{ width: `${pop}%` }}
-                      />
-                    </div>
-                  </div>
+                  <span className="text-xs sm:text-sm font-black font-mono text-rose-400">
+                    {typeof metrics.maxLoss === 'number'
+                      ? `₹${metrics.maxLoss.toLocaleString('en-IN')}`
+                      : metrics.maxLoss}
+                  </span>
+                  <span className="text-[9px] text-slate-500 block">R:R {metrics.riskRewardRatio}</span>
                 </div>
-
-                {/* 2. Active Strategy Legs Table */}
-                <div className="flex-1 flex flex-col bg-slate-950 rounded-xl border border-slate-800 overflow-hidden mb-3">
-                  <div className="px-3 py-2 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between text-xs font-bold text-slate-300">
-                    <span>Strategy Legs ({enrichedLegs.length})</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 text-[11px]">Live P&L:</span>
-                      <span className={`font-mono font-black ${liveStrategyPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {liveStrategyPnl >= 0 ? '+' : ''}₹{liveStrategyPnl.toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 custom-scrollbar max-h-52">
-                    {enrichedLegs.length === 0 ? (
-                      <div className="p-6 text-center text-slate-500 text-xs">
-                        No legs added. Hover near any strike in the Option Chain and click <b className="text-blue-400">B (Buy)</b> or <b className="text-rose-400">S (Sell)</b>.
-                      </div>
-                    ) : (
-                      enrichedLegs.map((leg, index) => (
-                        <div key={index} className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-slate-900/40 text-xs">
-                          {/* Action toggle & Type */}
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleToggleAction(index)}
-                              className={`px-2 py-0.5 rounded font-black text-[11px] transition-colors cursor-pointer ${
-                                leg.action === 'BUY' 
-                                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30'
-                                  : 'bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/30'
-                              }`}
-                              title="Click to toggle BUY / SELL"
-                            >
-                              {leg.action}
-                            </button>
-                            <span className="font-bold text-white font-mono">
-                              ₹{leg.strike}
-                            </span>
-                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-extrabold ${leg.type === 'CE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                              {leg.type}
-                            </span>
-                          </div>
-
-                          {/* Lots Counter */}
-                          <div className="flex items-center gap-1.5 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                            <button
-                              onClick={() => handleUpdateLots(index, -1)}
-                              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                              title="Decrease Lots"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="font-mono text-xs font-bold text-slate-200 min-w-[28px] text-center">
-                              {leg.lots}L ({leg.lots * (leg.lotSize || 50)})
-                            </span>
-                            <button
-                              onClick={() => handleUpdateLots(index, 1)}
-                              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                              title="Increase Lots"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
-
-                          {/* Prices & Live P&L */}
-                          <div className="flex items-center gap-3 font-mono text-[11px]">
-                            <div className="text-right">
-                              <span className="text-slate-500 text-[10px] block">Entry:</span>
-                              <span className="text-slate-300 font-semibold">₹{leg.entryPrice}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-slate-500 text-[10px] block">LTP:</span>
-                              <span className="text-cyan-300 font-semibold">₹{leg.currentLtp}</span>
-                            </div>
-                            <div className="text-right min-w-[65px]">
-                              <span className="text-slate-500 text-[10px] block">P&L:</span>
-                              <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Delete */}
-                          <button
-                            onClick={() => handleDeleteLeg(index)}
-                            className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
-                            title="Remove Leg"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Deploy Strategy Button */}
-                <button
-                  onClick={handleDeployTrade}
-                  disabled={enrichedLegs.length === 0}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                  <span>Deploy Paper Trade Strategy ({enrichedLegs.length} Legs)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
               </div>
 
-              {/* Right Column: Interactive Payoff Chart */}
-              <div className="w-full lg:w-[52%] p-3 flex flex-col justify-between overflow-y-auto">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <PieChart className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      Expiry Payoff Graph
+              {/* 2. Active Strategy Legs Table */}
+              <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shrink-0">
+                <div className="px-3 py-1.5 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span>Strategy Legs ({enrichedLegs.length})</span>
+                  {activeLegs.length > 0 && (
+                    <span className="text-[11px] text-slate-400 font-mono font-normal">
+                      Spot: ₹{currentSpot.toLocaleString('en-IN')}
                     </span>
-                  </div>
-                  {metrics.breakevens && metrics.breakevens.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[11px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded">
-                      <span>Breakeven:</span>
-                      <span className="font-bold">
-                        {metrics.breakevens.map(b => `₹${Math.round(b)}`).join(' & ')}
-                      </span>
-                    </div>
                   )}
                 </div>
 
-                <div className="flex-1 min-h-[220px]">
+                <div className="divide-y divide-slate-800/60 max-h-44 overflow-y-auto custom-scrollbar">
+                  {enrichedLegs.length === 0 ? (
+                    <div className="p-4 text-center text-slate-500 text-xs">
+                      No legs added. Hover near any strike in Option Chain and click <b className="text-blue-400">B</b> (Buy) or <b className="text-rose-400">S</b> (Sell).
+                    </div>
+                  ) : (
+                    enrichedLegs.map((leg, index) => (
+                      <div key={index} className="px-2.5 py-1.5 flex items-center justify-between gap-1.5 hover:bg-slate-900/40 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleToggleAction(index)}
+                            className={`px-1.5 py-0.5 rounded font-black text-[10px] transition-colors cursor-pointer ${
+                              leg.action === 'BUY' 
+                                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                                : 'bg-rose-600/20 text-rose-400 border border-rose-500/30'
+                            }`}
+                            title="Click to toggle BUY / SELL"
+                          >
+                            {leg.action}
+                          </button>
+                          <span className="font-bold text-white font-mono text-xs">₹{leg.strike}</span>
+                          <span className={`px-1 rounded text-[9px] font-black ${leg.type === 'CE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                            {leg.type}
+                          </span>
+                        </div>
+
+                        {/* Lots Counter */}
+                        <div className="flex items-center gap-1 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">
+                          <button
+                            onClick={() => handleUpdateLots(index, -1)}
+                            className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                          >
+                            <Minus className="w-2.5 h-2.5" />
+                          </button>
+                          <span className="font-mono text-[11px] font-bold text-slate-200 min-w-[20px] text-center">
+                            {leg.lots}L
+                          </span>
+                          <button
+                            onClick={() => handleUpdateLots(index, 1)}
+                            className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+
+                        {/* PnL */}
+                        <div className="text-right font-mono text-[11px]">
+                          <span className="text-slate-400 text-[10px] block">LTP: ₹{leg.currentLtp}</span>
+                          <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => handleDeleteLeg(index)}
+                          className="p-1 text-slate-500 hover:text-rose-400 rounded"
+                          title="Delete Leg"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Interactive Payoff Chart */}
+              <div className="flex-1 flex flex-col min-h-[190px]">
+                <div className="flex items-center justify-between mb-1 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-white uppercase tracking-wider text-[11px]">
+                    <PieChart className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Payoff Curve at Expiry</span>
+                  </div>
+                  {metrics.breakevens && metrics.breakevens.length > 0 && (
+                    <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                      BE: {metrics.breakevens.map(b => `₹${Math.round(b)}`).join(', ')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-h-[175px]">
                   <PayoffChart 
                     legs={enrichedLegs} 
                     currentSpot={currentSpot} 
                     symbol={symbol}
-                    height={isMaximized ? 420 : 250} 
+                    height={195} 
                   />
                 </div>
               </div>
+
+              {/* 4. Deploy Button */}
+              <button
+                onClick={handleDeployTrade}
+                disabled={enrichedLegs.length === 0}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 mt-auto"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-200" />
+                <span>Deploy Paper Trade ({enrichedLegs.length} Legs)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           ) : (
             /* Deployed Paper Portfolio Tab */

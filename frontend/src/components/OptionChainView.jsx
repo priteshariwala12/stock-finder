@@ -698,283 +698,297 @@ export default function OptionChainView({ onSelectStock }) {
         </div>
       </div>
 
-      {/* 3. Main Option Chain Table */}
-      <div 
-        className="flex-1 min-h-0 overflow-auto relative outline-none focus:ring-1 focus:ring-indigo-500/20" 
-        ref={tableContainerRef}
-        tabIndex={0}
-      >
-        {isLoading && (
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] z-20 flex items-center justify-center">
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-2xl">
-              <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-xs font-semibold">Streaming authentic option chain from NSE...</span>
-            </div>
-          </div>
-        )}
+      {/* 3. Main Workspace: Option Chain Table & Side-by-Side Paper Trading Terminal */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
+        {/* Left Pane: Option Chain Table + Summary Footer */}
+        <div className={`flex flex-col min-h-0 overflow-hidden transition-all duration-150 ${
+          isPaperTerminalOpen ? 'flex-1 lg:flex-initial w-full lg:w-[58%] xl:w-[62%] h-auto lg:h-full' : 'w-full h-full'
+        }`}>
+          {/* Main Option Chain Table */}
+          <div 
+            className="flex-1 min-h-0 overflow-auto relative outline-none focus:ring-1 focus:ring-indigo-500/20" 
+            ref={tableContainerRef}
+            tabIndex={0}
+          >
+            {isLoading && (
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-2xl">
+                  <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs font-semibold">Streaming authentic option chain from NSE...</span>
+                </div>
+              </div>
+            )}
 
-        <table className="w-full text-left border-collapse text-xs select-none">
-          {/* Table Header Tier 1: CALLS vs PUTS Banner */}
-          <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800 text-xs shadow-md">
-            <tr className="border-b border-slate-800/80">
-              <th colSpan={6} className="py-2 text-center text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/40 border-r border-slate-800">
-                CALLS (CE)
-              </th>
-              <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-4">
-                STRIKE
-              </th>
-              <th colSpan={6} className="py-2 text-center text-rose-400 font-bold uppercase tracking-wider bg-rose-950/40">
-                PUTS (PE)
-              </th>
-            </tr>
-            {/* Table Header Tier 2: Specific Columns */}
-            <tr className="bg-slate-950/90 text-slate-400 text-[11px] font-semibold border-b border-slate-800">
-              {/* CE Columns */}
-              <th className="py-2 px-3 text-right">OI (Chg)</th>
-              <th className="py-2 px-2 text-right">Volume</th>
-              <th className="py-2 px-2 text-right">IV (%)</th>
-              <th className="py-2 px-2 text-right">Bid / Ask</th>
-              <th className="py-2 px-2 text-right">Change</th>
-              <th className="py-2 px-3 text-right border-r border-slate-800 text-emerald-300 font-bold">
-                {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
-              </th>
+            <table className="w-full text-left border-collapse text-xs select-none">
+              {/* Table Header Tier 1: CALLS vs PUTS Banner */}
+              <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800 text-xs shadow-md">
+                <tr className="border-b border-slate-800/80">
+                  <th colSpan={6} className="py-2 text-center text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/40 border-r border-slate-800">
+                    CALLS (CE)
+                  </th>
+                  <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-4">
+                    STRIKE
+                  </th>
+                  <th colSpan={6} className="py-2 text-center text-rose-400 font-bold uppercase tracking-wider bg-rose-950/40">
+                    PUTS (PE)
+                  </th>
+                </tr>
+                {/* Table Header Tier 2: Specific Columns */}
+                <tr className="bg-slate-950/90 text-slate-400 text-[11px] font-semibold border-b border-slate-800">
+                  {/* CE Columns */}
+                  <th className="py-2 px-3 text-right">OI (Chg)</th>
+                  <th className="py-2 px-2 text-right">Volume</th>
+                  <th className="py-2 px-2 text-right">IV (%)</th>
+                  <th className="py-2 px-2 text-right">Bid / Ask</th>
+                  <th className="py-2 px-2 text-right">Change</th>
+                  <th className="py-2 px-3 text-right border-r border-slate-800 text-emerald-300 font-bold">
+                    {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
+                  </th>
 
-              {/* STRIKE Column */}
-              <th className="py-2 px-4 text-center bg-slate-900 text-white font-bold border-r border-slate-800">
-                Strike Price
-              </th>
+                  {/* STRIKE Column */}
+                  <th className="py-2 px-4 text-center bg-slate-900 text-white font-bold border-r border-slate-800">
+                    Strike Price
+                  </th>
 
-              {/* PE Columns */}
-              <th className="py-2 px-3 text-left border-r border-slate-800 text-rose-300 font-bold">
-                {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
-              </th>
-              <th className="py-2 px-2 text-left">Change</th>
-              <th className="py-2 px-2 text-left">Bid / Ask</th>
-              <th className="py-2 px-2 text-left">IV (%)</th>
-              <th className="py-2 px-2 text-left">Volume</th>
-              <th className="py-2 px-3 text-left">OI (Chg)</th>
-            </tr>
-          </thead>
+                  {/* PE Columns */}
+                  <th className="py-2 px-3 text-left border-r border-slate-800 text-rose-300 font-bold">
+                    {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
+                  </th>
+                  <th className="py-2 px-2 text-left">Change</th>
+                  <th className="py-2 px-2 text-left">Bid / Ask</th>
+                  <th className="py-2 px-2 text-left">IV (%)</th>
+                  <th className="py-2 px-2 text-left">Volume</th>
+                  <th className="py-2 px-3 text-left">OI (Chg)</th>
+                </tr>
+              </thead>
 
-          {/* Table Body */}
-          <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-            {visibleStrikes.map((row) => {
-              const strike = row.strike;
-              const isAtm = row.is_atm;
-              const ce = row.ce || {};
-              const pe = row.pe || {};
+              {/* Table Body */}
+              <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                {visibleStrikes.map((row) => {
+                  const strike = row.strike;
+                  const isAtm = row.is_atm;
+                  const ce = row.ce || {};
+                  const pe = row.pe || {};
 
-              // Background styling:
-              // Calls ITM (strike < spot): tinted amber/yellow
-              // Puts ITM (strike > spot): tinted amber/yellow
-              const ceItmBg = ce.in_the_money ? 'bg-amber-500/[0.04]' : 'bg-transparent';
-              const peItmBg = pe.in_the_money ? 'bg-amber-500/[0.04]' : 'bg-transparent';
+                  // Background styling:
+                  // Calls ITM (strike < spot): tinted amber/yellow
+                  // Puts ITM (strike > spot): tinted amber/yellow
+                  const ceItmBg = ce.in_the_money ? 'bg-amber-500/[0.04]' : 'bg-transparent';
+                  const peItmBg = pe.in_the_money ? 'bg-amber-500/[0.04]' : 'bg-transparent';
 
-              return (
-                <tr 
-                  key={strike} 
-                  ref={isAtm ? atmRowRef : null}
-                  id={isAtm ? "atm-strike-row" : undefined}
-                  onMouseEnter={() => setHoveredStrike(strike)}
-                  onMouseLeave={() => setHoveredStrike(null)}
-                  className={`hover:bg-slate-800/60 transition-colors group ${
-                    isAtm ? 'ring-2 ring-indigo-400 bg-indigo-950/40 shadow-lg shadow-indigo-500/20 z-10 relative' : ''
-                  }`}
-                >
-                  {/* CE: OI & OI Change */}
-                  <td className={`py-1.5 px-3 text-right ${ceItmBg}`}>
-                    <span className="text-slate-300 font-semibold">{formatOi(ce.oi)}</span>
-                    {ce.oi_change !== 0 && (
-                      <span className={`block text-[9px] font-bold ${ce.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {ce.oi_change > 0 ? '+' : ''}{formatOi(ce.oi_change)}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* CE: Volume */}
-                  <td className={`py-1.5 px-2 text-right text-slate-400 ${ceItmBg}`}>
-                    {formatOi(ce.volume)}
-                  </td>
-
-                  {/* CE: IV */}
-                  <td className={`py-1.5 px-2 text-right text-cyan-300 ${ceItmBg}`}>
-                    {ce.iv ? `${ce.iv}%` : '—'}
-                  </td>
-
-                  {/* CE: Bid / Ask */}
-                  <td className={`py-1.5 px-2 text-right text-[10px] text-slate-400 ${ceItmBg}`}>
-                    <span className="text-slate-300">{ce.bid || '—'}</span> / <span className="text-slate-300">{ce.ask || '—'}</span>
-                  </td>
-
-                  {/* CE: Change */}
-                  <td className={`py-1.5 px-2 text-right ${ceItmBg}`}>
-                    <span className={`font-bold ${ce.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {ce.change >= 0 ? '+' : ''}{ce.change}
-                    </span>
-                    <span className="block text-[9px] text-slate-500">
-                      ({ce.pchange >= 0 ? '+' : ''}{ce.pchange}%)
-                    </span>
-                  </td>
-
-                  {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
-                  <td 
-                    onClick={() => openChartModal(row, 'CE')}
-                    className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
-                    title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      <span>₹{ce.ltp}</span>
-                      <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
-                    </div>
-                  </td>
-
-                  {/* STRIKE PRICE (CENTER) - Buy & Sell Action Buttons on Hover */}
-                  <td 
-                    className={`py-1 px-1.5 text-center border-r border-slate-800 transition-all select-none ${
-                      isAtm 
-                        ? 'bg-indigo-600 text-white font-black shadow-md' 
-                        : 'bg-slate-900 text-white font-extrabold'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1 min-w-[140px] px-1">
-                      {/* CE Quick Trade Buttons (LEFT of Strike - Calls) */}
-                      <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
-                        <button
-                          onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
-                          className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
-                          title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
-                        >
-                          B
-                        </button>
-                        <button
-                          onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
-                          className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
-                          title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
-                        >
-                          S
-                        </button>
-                      </div>
-
-                      {/* Strike Price & Real-Time Chart Link */}
-                      <div 
-                        onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
-                        className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-1"
-                        title={`Click to open Strike ₹${strike} Real-Time Candlestick Chart`}
-                      >
-                        <span className="font-mono font-bold text-xs">{strike.toLocaleString('en-IN')}</span>
-                        {isAtm && (
-                          <span className="px-1 py-0.2 rounded bg-white text-indigo-900 text-[8px] font-black uppercase">
-                            ATM
+                  return (
+                    <tr 
+                      key={strike} 
+                      ref={isAtm ? atmRowRef : null}
+                      id={isAtm ? "atm-strike-row" : undefined}
+                      onMouseEnter={() => setHoveredStrike(strike)}
+                      onMouseLeave={() => setHoveredStrike(null)}
+                      onClick={() => setHoveredStrike(strike)}
+                      className={`hover:bg-slate-800/60 transition-colors group ${
+                        isAtm ? 'ring-2 ring-indigo-400 bg-indigo-950/40 shadow-lg shadow-indigo-500/20 z-10 relative' : ''
+                      }`}
+                    >
+                      {/* CE: OI & OI Change */}
+                      <td className={`py-1.5 px-3 text-right ${ceItmBg}`}>
+                        <span className="text-slate-300 font-semibold">{formatOi(ce.oi)}</span>
+                        {ce.oi_change !== 0 && (
+                          <span className={`block text-[9px] font-bold ${ce.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {ce.oi_change > 0 ? '+' : ''}{formatOi(ce.oi_change)}
                           </span>
                         )}
-                        <BarChart2 className="w-2.5 h-2.5 opacity-40 hover:opacity-100 text-indigo-300 transition-opacity" />
-                      </div>
+                      </td>
 
-                      {/* PE Quick Trade Buttons (RIGHT of Strike - Puts) */}
-                      <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
-                        <button
-                          onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
-                          className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
-                          title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
-                        >
-                          B
-                        </button>
-                        <button
-                          onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
-                          className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
-                          title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
-                        >
-                          S
-                        </button>
-                      </div>
-                    </div>
-                  </td>
+                      {/* CE: Volume */}
+                      <td className={`py-1.5 px-2 text-right text-slate-400 ${ceItmBg}`}>
+                        {formatOi(ce.volume)}
+                      </td>
 
-                  {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
-                  <td 
-                    onClick={() => openChartModal(row, 'PE')}
-                    className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
-                    title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
-                  >
-                    <div className="flex items-center justify-start gap-1">
-                      <span>₹{pe.ltp}</span>
-                      <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
-                    </div>
-                  </td>
+                      {/* CE: IV */}
+                      <td className={`py-1.5 px-2 text-right text-cyan-300 ${ceItmBg}`}>
+                        {ce.iv ? `${ce.iv}%` : '—'}
+                      </td>
 
-                  {/* PE: Change */}
-                  <td className={`py-1.5 px-2 text-left ${peItmBg}`}>
-                    <span className={`font-bold ${pe.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {pe.change >= 0 ? '+' : ''}{pe.change}
-                    </span>
-                    <span className="block text-[9px] text-slate-500">
-                      ({pe.pchange >= 0 ? '+' : ''}{pe.pchange}%)
-                    </span>
-                  </td>
+                      {/* CE: Bid / Ask */}
+                      <td className={`py-1.5 px-2 text-right text-[10px] text-slate-400 ${ceItmBg}`}>
+                        <span className="text-slate-300">{ce.bid || '—'}</span> / <span className="text-slate-300">{ce.ask || '—'}</span>
+                      </td>
 
-                  {/* PE: Bid / Ask */}
-                  <td className={`py-1.5 px-2 text-left text-[10px] text-slate-400 ${peItmBg}`}>
-                    <span className="text-slate-300">{pe.bid || '—'}</span> / <span className="text-slate-300">{pe.ask || '—'}</span>
-                  </td>
+                      {/* CE: Change */}
+                      <td className={`py-1.5 px-2 text-right ${ceItmBg}`}>
+                        <span className={`font-bold ${ce.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {ce.change >= 0 ? '+' : ''}{ce.change}
+                        </span>
+                        <span className="block text-[9px] text-slate-500">
+                          ({ce.pchange >= 0 ? '+' : ''}{ce.pchange}%)
+                        </span>
+                      </td>
 
-                  {/* PE: IV */}
-                  <td className={`py-1.5 px-2 text-left text-cyan-300 ${peItmBg}`}>
-                    {pe.iv ? `${pe.iv}%` : '—'}
-                  </td>
+                      {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
+                      <td 
+                        onClick={() => openChartModal(row, 'CE')}
+                        className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
+                        title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          <span>₹{ce.ltp}</span>
+                          <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
+                        </div>
+                      </td>
 
-                  {/* PE: Volume */}
-                  <td className={`py-1.5 px-2 text-left text-slate-400 ${peItmBg}`}>
-                    {formatOi(pe.volume)}
-                  </td>
+                      {/* STRIKE PRICE (CENTER) - Buy & Sell Action Buttons on Hover */}
+                      <td 
+                        className={`py-1 px-1.5 text-center border-r border-slate-800 transition-all select-none ${
+                          isAtm 
+                            ? 'bg-indigo-600 text-white font-black shadow-md' 
+                            : 'bg-slate-900 text-white font-extrabold'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 min-w-[140px] px-1">
+                          {/* CE Quick Trade Buttons (LEFT of Strike - Calls) */}
+                          <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                            <button
+                              onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
+                              className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
+                              title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                            >
+                              B
+                            </button>
+                            <button
+                              onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
+                              className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
+                              title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                            >
+                              S
+                            </button>
+                          </div>
 
-                  {/* PE: OI & OI Change */}
-                  <td className={`py-1.5 px-3 text-left ${peItmBg}`}>
-                    <span className="text-slate-300 font-semibold">{formatOi(pe.oi)}</span>
-                    {pe.oi_change !== 0 && (
-                      <span className={`block text-[9px] font-bold ${pe.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {pe.oi_change > 0 ? '+' : ''}{formatOi(pe.oi_change)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                          {/* Strike Price & Real-Time Chart Link */}
+                          <div 
+                            onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
+                            className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-1"
+                            title={`Click to open Strike ₹${strike} Real-Time Candlestick Chart`}
+                          >
+                            <span className="font-mono font-bold text-xs">{strike.toLocaleString('en-IN')}</span>
+                            {isAtm && (
+                              <span className="px-1 py-0.2 rounded bg-white text-indigo-900 text-[8px] font-black uppercase">
+                                ATM
+                              </span>
+                            )}
+                            <BarChart2 className="w-2.5 h-2.5 opacity-40 hover:opacity-100 text-indigo-300 transition-opacity" />
+                          </div>
 
-      {/* 4. Table Footer Summary */}
-      <div className="p-3 border-t border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
-        <div className="flex items-center gap-3">
-          <span>Showing {visibleStrikes.length} of {chainData?.total_strikes || 0} strikes</span>
-          <span className="text-slate-600">•</span>
-          <span>Source: Official National Stock Exchange of India (NSE)</span>
+                          {/* PE Quick Trade Buttons (RIGHT of Strike - Puts) */}
+                          <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                            <button
+                              onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
+                              className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
+                              title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                            >
+                              B
+                            </button>
+                            <button
+                              onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
+                              className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
+                              title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                            >
+                              S
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
+                      <td 
+                        onClick={() => openChartModal(row, 'PE')}
+                        className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
+                        title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
+                      >
+                        <div className="flex items-center justify-start gap-1">
+                          <span>₹{pe.ltp}</span>
+                          <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
+                        </div>
+                      </td>
+
+                      {/* PE: Change */}
+                      <td className={`py-1.5 px-2 text-left ${peItmBg}`}>
+                        <span className={`font-bold ${pe.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {pe.change >= 0 ? '+' : ''}{pe.change}
+                        </span>
+                        <span className="block text-[9px] text-slate-500">
+                          ({pe.pchange >= 0 ? '+' : ''}{pe.pchange}%)
+                        </span>
+                      </td>
+
+                      {/* PE: Bid / Ask */}
+                      <td className={`py-1.5 px-2 text-left text-[10px] text-slate-400 ${peItmBg}`}>
+                        <span className="text-slate-300">{pe.bid || '—'}</span> / <span className="text-slate-300">{pe.ask || '—'}</span>
+                      </td>
+
+                      {/* PE: IV */}
+                      <td className={`py-1.5 px-2 text-left text-cyan-300 ${peItmBg}`}>
+                        {pe.iv ? `${pe.iv}%` : '—'}
+                      </td>
+
+                      {/* PE: Volume */}
+                      <td className={`py-1.5 px-2 text-left text-slate-400 ${peItmBg}`}>
+                        {formatOi(pe.volume)}
+                      </td>
+
+                      {/* PE: OI & OI Change */}
+                      <td className={`py-1.5 px-3 text-left ${peItmBg}`}>
+                        <span className="text-slate-300 font-semibold">{formatOi(pe.oi)}</span>
+                        {pe.oi_change !== 0 && (
+                          <span className={`block text-[9px] font-bold ${pe.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {pe.oi_change > 0 ? '+' : ''}{formatOi(pe.oi_change)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 4. Table Footer Summary */}
+          <div className="p-3 border-t border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
+            <div className="flex items-center gap-3">
+              <span>Showing {visibleStrikes.length} of {chainData?.total_strikes || 0} strikes</span>
+              <span className="text-slate-600">•</span>
+              <span>Source: Official National Stock Exchange of India (NSE)</span>
+            </div>
+
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500/40"></span>
+                <span>In-The-Money (ITM)</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-indigo-600"></span>
+                <span>At-The-Money (ATM)</span>
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500/40"></span>
-            <span>In-The-Money (ITM)</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded bg-indigo-600"></span>
-            <span>At-The-Money (ATM)</span>
-          </span>
-        </div>
+        {/* Right Pane: Paper Trading Terminal (Side-by-Side Docked) */}
+        {isPaperTerminalOpen && (
+          <div className="w-full lg:w-[42%] xl:w-[38%] border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col bg-slate-900 shrink-0 h-[480px] lg:h-full shadow-2xl z-20 overflow-hidden">
+            <PaperTradingTerminal
+              isOpen={isPaperTerminalOpen}
+              onClose={() => setIsPaperTerminalOpen(false)}
+              activeLegs={paperLegs}
+              onUpdateLegs={setPaperLegs}
+              currentSpot={chainData?.underlying_price || 23500}
+              symbol={selectedSymbol}
+              expiry={chainData?.selected_expiry || selectedExpiry}
+              lotSize={chainData?.lot_size || 50}
+              quotesMap={quotesMap}
+              isDocked={true}
+            />
+          </div>
+        )}
       </div>
-
-      {/* Paper Trading & Strategy Payoff Terminal */}
-      <PaperTradingTerminal
-        isOpen={isPaperTerminalOpen}
-        onClose={() => setIsPaperTerminalOpen(false)}
-        activeLegs={paperLegs}
-        onUpdateLegs={setPaperLegs}
-        currentSpot={chainData?.underlying_price || 23500}
-        symbol={selectedSymbol}
-        expiry={chainData?.selected_expiry || selectedExpiry}
-        lotSize={chainData?.lot_size || 50}
-        quotesMap={quotesMap}
-      />
 
       {/* Real-Time Candlestick Chart Modal (0-Delay Powered by Fyers API v3) */}
       <RealTimeChartModal
