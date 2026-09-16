@@ -1,8 +1,48 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
-import { X, ExternalLink, RefreshCw, Maximize2, Zap, Clock } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, Component } from 'react';
+import { createChart, ColorType, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
+import { X, ExternalLink, RefreshCw, Maximize2, Zap, Clock, AlertTriangle } from 'lucide-react';
 
-export default function RealTimeChartModal({
+export class ChartErrorBoundary extends Component {
+  state = { hasError: false, error: null };
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('Chart component error caught by boundary:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="p-6 bg-slate-900 border border-slate-700 rounded-2xl text-center max-w-md shadow-2xl text-slate-100">
+            <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+            <h3 className="text-base font-bold mb-2">Unable to render in-app chart canvas</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Your browser was unable to initialize the canvas engine. You can still view this contract with zero delay directly on Fyers TradingView.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button 
+                onClick={() => this.setState({ hasError: false })} 
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all"
+              >
+                Retry
+              </button>
+              <button 
+                onClick={this.props.onClose} 
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function RealTimeChartModalInner({
   isOpen,
   onClose,
   symbol,
@@ -64,16 +104,20 @@ export default function RealTimeChartModal({
           }
         }
 
-        if (candleSeriesRef.current) {
-          candleSeriesRef.current.setData(unique);
-        }
+        try {
+          if (candleSeriesRef.current) {
+            candleSeriesRef.current.setData(unique);
+          }
 
-        if (volumeSeriesRef.current) {
-          volumeSeriesRef.current.setData(unique.map(c => ({
-            time: c.time,
-            value: c.volume,
-            color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'
-          })));
+          if (volumeSeriesRef.current) {
+            volumeSeriesRef.current.setData(unique.map(c => ({
+              time: c.time,
+              value: c.volume,
+              color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'
+            })));
+          }
+        } catch (seriesErr) {
+          console.error('Error applying series data:', seriesErr);
         }
 
         const lastCandle = unique[unique.length - 1];
@@ -81,8 +125,8 @@ export default function RealTimeChartModal({
           setLiveInfo(prev => ({
             ...prev,
             ltp: lastCandle.close,
-            fyersTvUrl: data.fyers_tv_url,
-            tvUrl: data.tradingview_url
+            fyersTvUrl: data.fyers_tv_url || prev.fyersTvUrl,
+            tvUrl: data.tradingview_url || prev.tvUrl
           }));
         }
       } else {
@@ -101,85 +145,89 @@ export default function RealTimeChartModal({
 
     // Clean up prior chart
     if (chartInstanceRef.current) {
-      chartInstanceRef.current.remove();
+      try {
+        chartInstanceRef.current.remove();
+      } catch (e) {
+        console.error('Error removing old chart:', e);
+      }
       chartInstanceRef.current = null;
     }
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#090d16' },
-        textColor: '#94a3b8',
-        fontSize: 12,
-        fontFamily: 'system-ui, -apple-system, sans-serif'
-      },
-      grid: {
-        vertLines: { color: 'rgba(30, 41, 59, 0.5)' },
-        horzLines: { color: 'rgba(30, 41, 59, 0.5)' }
-      },
-      crosshair: {
-        mode: 1,
-        vertLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#4f46e5' },
-        horzLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#4f46e5' }
-      },
-      timeScale: {
-        borderColor: '#334155',
-        timeVisible: true,
-        secondsVisible: false
-      },
-      rightPriceScale: {
-        borderColor: '#334155',
-        scaleMargins: { top: 0.1, bottom: 0.25 }
-      }
-    });
+    try {
+      const chart = createChart(chartContainerRef.current, {
+        autoSize: true,
+        layout: {
+          background: { type: ColorType.Solid, color: '#090d16' },
+          textColor: '#94a3b8',
+          fontSize: 12,
+          fontFamily: 'system-ui, -apple-system, sans-serif'
+        },
+        grid: {
+          vertLines: { color: 'rgba(30, 41, 59, 0.5)' },
+          horzLines: { color: 'rgba(30, 41, 59, 0.5)' }
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#4f46e5' },
+          horzLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#4f46e5' }
+        },
+        timeScale: {
+          borderColor: '#334155',
+          timeVisible: true,
+          secondsVisible: false
+        },
+        rightPriceScale: {
+          borderColor: '#334155',
+          scaleMargins: { top: 0.1, bottom: 0.25 }
+        }
+      });
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444'
-    });
+      // In lightweight-charts v5, use addSeries(CandlestickSeries)
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#10b981',
+        wickDownColor: '#ef4444'
+      });
 
-    const volumeSeries = chart.addHistogramSeries({
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      scaleMargins: { top: 0.8, bottom: 0 }
-    });
+      // In lightweight-charts v5, use addSeries(HistogramSeries)
+      const volumeSeries = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+        scaleMargins: { top: 0.8, bottom: 0 }
+      });
 
-    chartInstanceRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-    volumeSeriesRef.current = volumeSeries;
+      chartInstanceRef.current = chart;
+      candleSeriesRef.current = candleSeries;
+      volumeSeriesRef.current = volumeSeries;
 
-    // Crosshair listener for header stats
-    chart.subscribeCrosshairMove(param => {
-      if (!param || !param.time || !param.seriesData) {
-        setHoveredCandle(null);
-        return;
-      }
-      const data = param.seriesData.get(candleSeries);
-      if (data) {
-        setHoveredCandle(data);
-      }
-    });
+      // Crosshair listener for header stats
+      chart.subscribeCrosshairMove(param => {
+        if (!param || !param.time || !param.seriesData) {
+          setHoveredCandle(null);
+          return;
+        }
+        const data = param.seriesData.get(candleSeries);
+        if (data) {
+          setHoveredCandle(data);
+        }
+      });
 
-    // Resize observer
-    const handleResize = () => {
-      if (chartContainerRef.current && chartInstanceRef.current) {
-        chartInstanceRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight
-        });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    // Initial load
-    loadCandles(resolution);
+      // Initial load
+      loadCandles(resolution);
+    } catch (chartErr) {
+      console.error('Error creating lightweight-chart:', chartErr);
+      setError('Unable to render chart canvas. Please click "Full Fyers TradingView" above.');
+    }
 
     return () => {
-      window.removeEventListener('resize', handleResize);
       if (chartInstanceRef.current) {
-        chartInstanceRef.current.remove();
+        try {
+          chartInstanceRef.current.remove();
+        } catch (e) {
+          console.error('Error removing chart on unmount:', e);
+        }
         chartInstanceRef.current = null;
       }
     };
@@ -359,5 +407,14 @@ export default function RealTimeChartModal({
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RealTimeChartModal(props) {
+  if (!props.isOpen) return null;
+  return (
+    <ChartErrorBoundary onClose={props.onClose}>
+      <RealTimeChartModalInner {...props} />
+    </ChartErrorBoundary>
   );
 }
