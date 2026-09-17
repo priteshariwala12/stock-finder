@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, EmailStr
@@ -1141,6 +1141,56 @@ def api_get_chart_history(
         return fetch_candlestick_history(symbol=symbol, resolution=resolution, days=days)
     except Exception as e:
         logger.error(f"Error fetching chart history for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/health")
+def api_health():
+    """Ultra-lightweight keep-alive health check for free pingers (e.g. cron-job.org, UptimeRobot)"""
+    return {
+        "status": "ok",
+        "service": "Stock Finder India",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/api/fyers/status")
+def api_fyers_status():
+    """Check if Fyers token is currently valid or expired"""
+    try:
+        from fyers_service import get_fyers_client, get_auth_url
+        f = get_fyers_client()
+        if not f:
+            return {"authenticated": False, "message": "No token found", "auth_url": get_auth_url()}
+        prof = f.get_profile()
+        if prof and prof.get("s") == "ok":
+            return {"authenticated": True, "name": prof.get("data", {}).get("name", "User")}
+        else:
+            return {
+                "authenticated": False,
+                "message": prof.get("message", "Token expired"),
+                "auth_url": get_auth_url()
+            }
+    except Exception as e:
+        return {"authenticated": False, "message": str(e), "auth_url": None}
+
+@app.post("/api/fyers/set-auth-code")
+def api_fyers_set_auth_code(data: dict = Body(...)):
+    """Set new auth code after daily Fyers login to generate fresh access token"""
+    auth_code = data.get("auth_code") or data.get("auth_url")
+    if not auth_code:
+        raise HTTPException(status_code=400, detail="auth_code is required")
+    # If full redirect URL was pasted, extract auth_code parameter
+    if "auth_code=" in auth_code:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(auth_code)
+        params = urllib.parse.parse_qs(parsed.query)
+        if "auth_code" in params:
+            auth_code = params["auth_code"][0]
+
+    try:
+        from fyers_service import set_auth_code
+        result = set_auth_code(auth_code.strip())
+        return result
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
