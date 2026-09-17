@@ -23,11 +23,13 @@ export default function RecommendationHub({ onSelectStock }) {
     setExpandedTheses(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const fetchData = async () => {
+  const [fnoOnly, setFnoOnly] = useState(false);
+
+  const fetchData = async (isFno = fnoOnly) => {
     setIsLoading(true);
     try {
       const [recsRes, statsRes] = await Promise.all([
-        fetch('/api/recommendations'),
+        fetch(`/api/recommendations?fno_only=${isFno}`),
         fetch('/api/recommendations/stats')
       ]);
 
@@ -47,8 +49,8 @@ export default function RecommendationHub({ onSelectStock }) {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(fnoOnly);
+  }, [fnoOnly]);
 
   // Filter active recommendations based on active tab
   const activeCalls = recommendations.filter(r => r.exit_date === null);
@@ -191,11 +193,24 @@ export default function RecommendationHub({ onSelectStock }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            {/* Universal F&O Toggle */}
             <button
-              onClick={fetchData}
+              onClick={() => setFnoOnly(prev => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                fnoOnly
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-md shadow-amber-950/30'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+              }`}
+            >
+              <Zap className={`w-3.5 h-3.5 ${fnoOnly ? 'text-amber-400' : 'text-slate-500'}`} />
+              <span>F&amp;O Only: {fnoOnly ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
+              onClick={() => fetchData(fnoOnly)}
               disabled={isLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isLoading ? 'animate-spin' : ''}`} />
               <span>Refresh Calls</span>

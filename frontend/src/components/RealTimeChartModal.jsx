@@ -97,6 +97,7 @@ function RealTimeChartModalInner({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hoveredCandle, setHoveredCandle] = useState(null);
+  const lastCandleRef = useRef(null);
   const [currentIstTime, setCurrentIstTime] = useState(() => {
     return new Date().toLocaleTimeString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -189,6 +190,8 @@ function RealTimeChartModalInner({
 
         const lastCandle = unique[unique.length - 1];
         if (lastCandle) {
+          lastCandleRef.current = lastCandle;
+          setHoveredCandle(prev => prev || lastCandle);
           setLiveInfo(prev => ({
             ...prev,
             ltp: lastCandle.close,
@@ -296,7 +299,9 @@ function RealTimeChartModalInner({
       // Crosshair listener for header stats
       chart.subscribeCrosshairMove(param => {
         if (!param || !param.time || !param.seriesData) {
-          setHoveredCandle(null);
+          if (lastCandleRef.current) {
+            setHoveredCandle(lastCandleRef.current);
+          }
           return;
         }
         const data = param.seriesData.get(candleSeries);
@@ -307,6 +312,8 @@ function RealTimeChartModalInner({
             volume: vData?.value,
             time: param.time
           });
+        } else if (lastCandleRef.current) {
+          setHoveredCandle(lastCandleRef.current);
         }
       });
 
@@ -383,11 +390,11 @@ function RealTimeChartModalInner({
             </div>
           </div>
 
-          {/* Candlestick OHLC Header Stats */}
+          {/* Candlestick OHLC Header Stats (Always Visible with persistent last candle data) */}
           {activeCandle ? (
-            <div className="hidden lg:flex items-center gap-3 text-xs font-mono bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800">
+            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-mono bg-slate-900/90 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-800 shadow-inner">
               {activeCandle.time && (
-                <span className="text-indigo-400 font-bold pr-2 border-r border-slate-700 flex items-center gap-1">
+                <span className="text-indigo-400 font-bold pr-2 border-r border-slate-700 hidden sm:inline-flex items-center gap-1">
                   <Clock className="w-3 h-3 text-indigo-400" />
                   <span>
                     {typeof activeCandle.time === 'number'
@@ -401,7 +408,7 @@ function RealTimeChartModalInner({
               <span className="text-slate-400">L: <b className="text-rose-400">₹{activeCandle.low?.toFixed(2)}</b></span>
               <span className="text-slate-400">C: <b className="text-white">₹{activeCandle.close?.toFixed(2)}</b></span>
               {activeCandle.volume !== undefined && activeCandle.volume !== null && (
-                <span className="text-slate-400 border-l border-slate-700 pl-2">
+                <span className="text-slate-400 border-l border-slate-700 pl-2 hidden md:inline">
                   Vol: <b className="text-indigo-300">
                     {activeCandle.volume >= 1000000 
                       ? `${(activeCandle.volume / 1000000).toFixed(2)}M`

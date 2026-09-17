@@ -16,7 +16,7 @@ const VIEW_TITLES = {
   recommendations: { title: 'AI Recommendations', desc: 'Institutional High-Probability Trades' },
   market_picture: { title: 'Market Picture', desc: 'Top Gainers, Losers & Breadth' },
   option_chain: { title: 'NSE & BSE Option Chain', desc: 'Realtime Live & Closing Option Chain with TradingView Strike Charts' },
-  iv_analysis: { title: 'IV Analysis Terminal', desc: 'Realtime Implied Volatility & Options Spikes' },
+  results_calendar: { title: 'Corporate Results Calendar', desc: 'Upcoming Board Meetings, Declared Results & 5-Year Financial Statements' },
   sector_flow: { title: 'Sector Capital Flow', desc: 'Institutional Sector Rotation & Turnover' },
   heatmap: { title: 'Market Heat Map', desc: 'Visual Treemap by Market Cap & Returns' },
   learn: { title: 'Stock Market Learning Academy', desc: 'Curated Video Masterclasses from Basic to Advance' },

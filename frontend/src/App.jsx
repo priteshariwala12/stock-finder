@@ -6,7 +6,7 @@ import SyncModal from './components/SyncModal';
 import SavePresetModal from './components/SavePresetModal';
 import AuthModal from './components/AuthModal';
 import RecommendationHub from './components/RecommendationHub';
-import IVAnalysisView from './components/IVAnalysisView';
+import ResultCalendarView from './components/ResultCalendarView';
 import SectorFlowView from './components/SectorFlowView';
 import MarketHeatmapView from './components/MarketHeatmapView';
 import MarketPictureView from './components/MarketPictureView';
@@ -16,7 +16,7 @@ import OptionChainView from './components/OptionChainView';
 export const VALID_VIEWS = [
   'option_chain',
   'market_picture',
-  'iv_analysis',
+  'results_calendar',
   'sector_flow',
   'heatmap',
   'recommendations',
@@ -505,9 +505,9 @@ export default function App() {
             <OptionChainView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
           )}
 
-          {/* 2. IV Analysis View (Derivatives & Strike Spikes) */}
-          {currentView === 'iv_analysis' && (
-            <IVAnalysisView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
+          {/* 2. Corporate Results Calendar View */}
+          {currentView === 'results_calendar' && (
+            <ResultCalendarView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
           )}
 
           {/* 3. Sector Flow View */}

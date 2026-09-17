@@ -13,10 +13,12 @@ import hashlib
 import secrets
 import uuid
 from datetime import datetime
+import time
 
 from data_engine import get_db_connection, enrich_stock_universe, DB_PATH
 from query_engine import parse_full_query, RATIO_CATALOG
 from option_chain_service import get_all_option_symbols, get_live_option_chain, check_is_market_open
+from results_service import results_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ScreenerServer")
@@ -843,33 +845,55 @@ def delete_preset(preset_id: str):
     return {"status": "DELETED", "id": preset_id}
 
 @app.get("/api/recommendations")
-def get_recommendations(category: Optional[str] = None, status: Optional[str] = None):
+def get_recommendations(category: Optional[str] = None, status: Optional[str] = None, fno_only: Optional[bool] = False):
     conn = get_db_connection()
     c = conn.cursor()
     
-    query = "SELECT * FROM recommendations WHERE 1=1"
+    query = """
+    SELECT r.*, 
+           COALESCE(s.current_price, r.current_price) as current_price,
+           s.change_1d as stock_change_1d,
+           COALESCE(s.is_fno, 0) as is_fno
+    FROM recommendations r
+    LEFT JOIN stocks s ON r.symbol = s.symbol
+    WHERE 1=1
+    """
     params = []
+
+    if fno_only:
+        query += " AND s.is_fno = 1"
     
     if category and category.lower() != "all":
-        query += " AND category = ?"
+        query += " AND r.category = ?"
         params.append(category.lower())
         
     if status and status.lower() != "all":
         if status.lower() == "active":
-            query += " AND (status NOT IN ('sl_hit') AND exit_date IS NULL)"
-            query += " ORDER BY claude_confidence DESC NULLS LAST, fundamental_score DESC NULLS LAST, entry_time DESC"
+            query += " AND (r.status NOT IN ('sl_hit') AND r.exit_date IS NULL)"
+            query += " ORDER BY r.claude_confidence DESC NULLS LAST, r.fundamental_score DESC NULLS LAST, r.entry_time DESC"
         elif status.lower() == "closed":
-            query += " AND exit_date IS NOT NULL"
-            query += " ORDER BY exit_date DESC, entry_time DESC"
+            query += " AND r.exit_date IS NOT NULL"
+            query += " ORDER BY r.exit_date DESC, r.entry_time DESC"
         else:
-            query += " AND status = ?"
+            query += " AND r.status = ?"
             params.append(status.lower())
-            query += " ORDER BY entry_time DESC, created_at DESC"
+            query += " ORDER BY r.entry_time DESC, r.created_at DESC"
     else:
-        query += " ORDER BY claude_confidence DESC NULLS LAST, entry_time DESC, created_at DESC"
+        query += " ORDER BY r.claude_confidence DESC NULLS LAST, r.entry_time DESC, r.created_at DESC"
             
     c.execute(query, params)
     rows = [dict(r) for r in c.fetchall()]
+
+    for row in rows:
+        if row.get("exit_date") is None and row.get("current_price"):
+            entry_min = row.get("entry_range_min") or row.get("current_price")
+            entry_max = row.get("entry_range_max") or row.get("current_price")
+            avg_entry = (entry_min + entry_max) / 2.0
+            if avg_entry > 0:
+                row["live_return_pct"] = round(((row["current_price"] - avg_entry) / avg_entry) * 100.0, 2)
+            else:
+                row["live_return_pct"] = 0.0
+
     conn.close()
     return {"recommendations": rows, "count": len(rows)}
 
@@ -1216,11 +1240,12 @@ def api_fyers_set_auth_code(data: dict = Body(...)):
 
 
 @app.get("/api/market/sector-flow")
-def get_sector_flow():
+def get_sector_flow(fno_only: Optional[bool] = False):
     conn = get_db_connection()
     c = conn.cursor()
+    fno_clause = "AND is_fno = 1" if fno_only else ""
     
-    query = """
+    query = f"""
     SELECT 
         sector,
         COUNT(*) as stock_count,
@@ -1232,7 +1257,7 @@ def get_sector_flow():
         ROUND(SUM(market_cap_cr), 2) as total_market_cap_cr,
         ROUND(AVG(volume_multiple), 2) as avg_volume_multiple
     FROM stocks
-    WHERE sector IS NOT NULL AND sector != ''
+    WHERE sector IS NOT NULL AND sector != '' {fno_clause}
     GROUP BY sector
     ORDER BY avg_change_1d DESC
     """
@@ -1241,11 +1266,11 @@ def get_sector_flow():
     
     for s in sector_rows:
         sec = s["sector"]
-        c.execute("SELECT symbol, change_1d, current_price FROM stocks WHERE sector = ? ORDER BY change_1d DESC LIMIT 1", (sec,))
+        c.execute(f"SELECT symbol, change_1d, current_price FROM stocks WHERE sector = ? {fno_clause} ORDER BY change_1d DESC LIMIT 1", (sec,))
         top_g = c.fetchone()
         s["top_gainer"] = dict(top_g) if top_g else None
         
-        c.execute("SELECT symbol, change_1d, current_price FROM stocks WHERE sector = ? ORDER BY change_1d ASC LIMIT 1", (sec,))
+        c.execute(f"SELECT symbol, change_1d, current_price FROM stocks WHERE sector = ? {fno_clause} ORDER BY change_1d ASC LIMIT 1", (sec,))
         top_l = c.fetchone()
         s["top_loser"] = dict(top_l) if top_l else None
         
@@ -1271,19 +1296,36 @@ def get_sector_flow():
     conn.close()
     return {"sectors": sector_rows, "count": len(sector_rows)}
 
-@app.get("/api/market/heatmap")
-def get_market_heatmap(limit: Optional[int] = 120):
+@app.get("/api/market/sector-stocks")
+def get_sector_stocks(sector: str, fno_only: Optional[bool] = False):
     conn = get_db_connection()
     c = conn.cursor()
+    fno_clause = "AND is_fno = 1" if fno_only else ""
+    c.execute(f"""
+        SELECT symbol, name, sector, industry, current_price, change_1d, volume, 
+               turnover_cr, volume_multiple, dist_from_52w_high, pe_ratio, market_cap_cr, is_fno, bse_code
+        FROM stocks
+        WHERE sector = ? {fno_clause}
+        ORDER BY market_cap_cr DESC
+    """, (sector,))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return {"sector": sector, "count": len(rows), "stocks": rows}
+
+@app.get("/api/market/heatmap")
+def get_market_heatmap(limit: Optional[int] = 150, fno_only: Optional[bool] = False):
+    conn = get_db_connection()
+    c = conn.cursor()
+    fno_clause = "AND is_fno = 1" if fno_only else ""
     
-    query = """
+    query = f"""
     SELECT symbol, name, sector, market_cap_cr, current_price, change_1d, turnover_cr, volume_multiple, is_fno
     FROM stocks
-    WHERE sector IS NOT NULL AND sector != '' AND market_cap_cr > 1000
+    WHERE sector IS NOT NULL AND sector != '' AND market_cap_cr > 1000 {fno_clause}
     ORDER BY market_cap_cr DESC
     LIMIT ?
     """
-    c.execute(query, (limit or 120,))
+    c.execute(query, (limit or 150,))
     stocks = [dict(r) for r in c.fetchall()]
     
     sectors_map = {}
@@ -1314,59 +1356,180 @@ def get_market_heatmap(limit: Optional[int] = 120):
     conn.close()
     return {"tree": sector_tree, "total_stocks": len(stocks)}
 
+_market_pic_cache = {}
+_market_pic_cache_time = {}
+
 @app.get("/api/market/picture")
-def get_market_picture():
+def get_market_picture(exchange: Optional[str] = "NSE", fno_only: Optional[bool] = False):
+    ex = (exchange or "NSE").strip().upper()
+    cache_key = f"{ex}_{fno_only}"
+    now = time.time()
+    if cache_key in _market_pic_cache and (now - _market_pic_cache_time.get(cache_key, 0) < 30):
+        return _market_pic_cache[cache_key]
+
+    if ex == "NSE":
+        try:
+            from curl_cffi import requests as cffi_requests
+            s = cffi_requests.Session(impersonate="chrome124")
+            s.get("https://www.nseindia.com", headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
+            h = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://www.nseindia.com/"
+            }
+            # Gainers & Losers from Official NSE API
+            var_g = s.get("https://www.nseindia.com/api/live-analysis-variations?index=gainers", headers=h, timeout=4).json()
+            var_l = s.get("https://www.nseindia.com/api/live-analysis-variations?index=loosers", headers=h, timeout=4).json()
+
+            sub_key = "FOSec" if fno_only else "allSec"
+            g_list = var_g.get(sub_key, {}).get("data", []) or var_g.get("NIFTY", {}).get("data", [])
+            l_list = var_l.get(sub_key, {}).get("data", []) or var_l.get("NIFTY", {}).get("data", [])
+
+            top_gainers = []
+            for item in g_list[:12]:
+                top_gainers.append({
+                    "symbol": item.get("symbol"),
+                    "name": item.get("symbol"),
+                    "sector": "NSE Listed",
+                    "current_price": item.get("ltp"),
+                    "change_1d": item.get("perChange"),
+                    "volume": item.get("trade_quantity"),
+                    "volume_multiple": 1.5,
+                    "is_fno": 1 if fno_only else 0
+                })
+
+            top_losers = []
+            for item in l_list[:12]:
+                top_losers.append({
+                    "symbol": item.get("symbol"),
+                    "name": item.get("symbol"),
+                    "sector": "NSE Listed",
+                    "current_price": item.get("ltp"),
+                    "change_1d": item.get("perChange"),
+                    "volume": item.get("trade_quantity"),
+                    "volume_multiple": 1.2,
+                    "is_fno": 1 if fno_only else 0
+                })
+
+            # Volume shockers from official NSE API
+            vol_data = s.get("https://www.nseindia.com/api/live-analysis-volume-gainers", headers=h, timeout=4).json().get("data", [])
+            volume_shockers = []
+            for item in vol_data[:12]:
+                volume_shockers.append({
+                    "symbol": item.get("symbol"),
+                    "name": item.get("companyName", item.get("symbol")),
+                    "sector": "NSE Listed",
+                    "current_price": item.get("ltp"),
+                    "change_1d": item.get("pChange"),
+                    "volume": item.get("volume"),
+                    "volume_multiple": round(float(item.get("week1volChange", 1.5)), 1),
+                    "is_fno": 1 if fno_only else 0
+                })
+
+            # Breadth from official allIndices
+            ind_data = s.get("https://www.nseindia.com/api/allIndices", headers=h, timeout=4).json().get("data", [])
+            adv, dec, unc = 0, 0, 0
+            for ind in ind_data:
+                idx_name = ind.get("index")
+                target_idx = "SECURITIES IN F&O" if fno_only else "NIFTY TOTAL MARKET"
+                if idx_name == target_idx or (not adv and idx_name in ["NIFTY 500", "NIFTY 50"]):
+                    adv = int(ind.get("advances", 0))
+                    dec = int(ind.get("declines", 0))
+                    unc = int(ind.get("unchanged", 0))
+                    if idx_name == target_idx:
+                        break
+
+            if adv or dec:
+                # 52w highs from database
+                conn = get_db_connection()
+                c = conn.cursor()
+                fno_filter = "AND is_fno = 1" if fno_only else ""
+                c.execute(f"""
+                SELECT symbol, name, sector, current_price, change_1d, 
+                       ROUND(current_price * (1.0 + (dist_from_52w_high / 100.0)), 2) as high_52w, 
+                       dist_from_52w_high, potential_score, is_fno
+                FROM stocks
+                WHERE dist_from_52w_high IS NOT NULL AND dist_from_52w_high <= 3.0 {fno_filter}
+                ORDER BY dist_from_52w_high ASC, change_1d DESC
+                LIMIT 12
+                """)
+                near_52w = [dict(r) for r in c.fetchall()]
+                conn.close()
+
+                res = {
+                    "exchange": "NSE",
+                    "top_gainers": top_gainers,
+                    "top_losers": top_losers,
+                    "volume_shockers": volume_shockers,
+                    "near_52w_high": near_52w,
+                    "breadth": {
+                        "advances": adv,
+                        "declines": dec,
+                        "unchanged": unc,
+                        "ad_ratio": round(adv / dec, 2) if dec > 0 else adv
+                    }
+                }
+                _market_pic_cache[cache_key] = res
+                _market_pic_cache_time[cache_key] = now
+                return res
+        except Exception as e:
+            logger.warning("NSE live market picture fetch: %s, falling back to local dataset", e)
+
+    # BSE or fallback
     conn = get_db_connection()
     c = conn.cursor()
-    
-    c.execute("""
-    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, potential_score, is_fno
+    fno_clause = "AND is_fno = 1" if fno_only else ""
+    bse_clause = "AND bse_code IS NOT NULL AND bse_code != ''" if ex == "BSE" else ""
+
+    c.execute(f"""
+    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, potential_score, is_fno, bse_code
     FROM stocks
-    WHERE change_1d > 0
+    WHERE change_1d > 0 {fno_clause} {bse_clause}
     ORDER BY change_1d DESC, volume_multiple DESC
-    LIMIT 10
+    LIMIT 12
     """)
     top_gainers = [dict(r) for r in c.fetchall()]
-    
-    c.execute("""
-    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, potential_score, is_fno
+
+    c.execute(f"""
+    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, potential_score, is_fno, bse_code
     FROM stocks
-    WHERE change_1d < 0
+    WHERE change_1d < 0 {fno_clause} {bse_clause}
     ORDER BY change_1d ASC, volume_multiple DESC
-    LIMIT 10
+    LIMIT 12
     """)
     top_losers = [dict(r) for r in c.fetchall()]
-    
-    c.execute("""
-    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, volume_change_pct, potential_score, is_fno
+
+    c.execute(f"""
+    SELECT symbol, name, sector, current_price, change_1d, volume, volume_multiple, volume_change_pct, potential_score, is_fno, bse_code
     FROM stocks
-    WHERE volume >= 50000 AND volume_multiple >= 1.5
+    WHERE volume >= 30000 AND volume_multiple >= 1.3 {fno_clause} {bse_clause}
     ORDER BY volume_multiple DESC, change_1d DESC
-    LIMIT 10
+    LIMIT 12
     """)
     volume_shockers = [dict(r) for r in c.fetchall()]
-    
-    c.execute("""
+
+    c.execute(f"""
     SELECT symbol, name, sector, current_price, change_1d, 
            ROUND(current_price * (1.0 + (dist_from_52w_high / 100.0)), 2) as high_52w, 
-           dist_from_52w_high, potential_score, is_fno
+           dist_from_52w_high, potential_score, is_fno, bse_code
     FROM stocks
-    WHERE dist_from_52w_high IS NOT NULL AND dist_from_52w_high <= 3.0
+    WHERE dist_from_52w_high IS NOT NULL AND dist_from_52w_high <= 3.0 {fno_clause} {bse_clause}
     ORDER BY dist_from_52w_high ASC, change_1d DESC
-    LIMIT 10
+    LIMIT 12
     """)
     near_52w_high = [dict(r) for r in c.fetchall()]
-    
-    c.execute("SELECT COUNT(*) FROM stocks WHERE change_1d > 0")
+
+    c.execute(f"SELECT COUNT(*) FROM stocks WHERE change_1d > 0 {fno_clause} {bse_clause}")
     adv = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM stocks WHERE change_1d < 0")
+    c.execute(f"SELECT COUNT(*) FROM stocks WHERE change_1d < 0 {fno_clause} {bse_clause}")
     dec = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM stocks WHERE change_1d = 0")
+    c.execute(f"SELECT COUNT(*) FROM stocks WHERE change_1d = 0 {fno_clause} {bse_clause}")
     unc = c.fetchone()[0]
-    
+
     conn.close()
-    
-    return {
+
+    res = {
+        "exchange": ex,
         "top_gainers": top_gainers,
         "top_losers": top_losers,
         "volume_shockers": volume_shockers,
@@ -1378,6 +1541,24 @@ def get_market_picture():
             "ad_ratio": round(adv / dec, 2) if dec > 0 else adv
         }
     }
+    _market_pic_cache[cache_key] = res
+    _market_pic_cache_time[cache_key] = now
+    return res
+
+# Corporate Results Calendar Endpoints
+@app.get("/api/results/calendar")
+def get_results_calendar(fno_only: Optional[bool] = False):
+    return {"upcoming": results_service.get_upcoming_results(fno_only=fno_only)}
+
+@app.get("/api/results/declared")
+def get_results_declared(fno_only: Optional[bool] = False):
+    return {"declared": results_service.get_declared_results(fno_only=fno_only)}
+
+@app.get("/api/results/history")
+def get_results_history(symbol: str):
+    if not symbol:
+        raise HTTPException(status_code=400, detail="symbol parameter is required")
+    return results_service.get_stock_history(symbol)
 
 @app.post("/api/export")
 def export_csv(req: ScreenRequest):

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { 
   Menu, X, Search, Sparkles, TrendingUp, Activity, 
-  Layers, Grid, Star, Zap, Terminal, GraduationCap
+  Layers, Grid, Star, Zap, Terminal, GraduationCap, Calendar
 } from 'lucide-react';
 
 export default function SidebarNav({
@@ -43,12 +43,12 @@ export default function SidebarNav({
       description: 'Top Gainers, Losers & Volume Shockers'
     },
     {
-      id: 'iv_analysis',
-      label: 'IV Analysis',
-      icon: Zap,
-      badge: 'F&O',
-      badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-      description: 'Realtime Implied Volatility & Strike Spikes'
+      id: 'results_calendar',
+      label: 'Result Calendar',
+      icon: Calendar,
+      badge: 'OFFICIAL',
+      badgeColor: 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30',
+      description: 'Upcoming Board Meetings, Declared & 5Y Financials'
     },
     {
       id: 'sector_flow',

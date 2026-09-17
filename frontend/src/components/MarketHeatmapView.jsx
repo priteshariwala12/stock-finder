@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Grid, RefreshCw, Eye, ArrowUpRight, ArrowDownRight, 
-  Layers, Filter, Sparkles, Shield
+  Layers, Filter, Sparkles, Shield, Zap
 } from 'lucide-react';
 
 export default function MarketHeatmapView({ onSelectStock }) {
@@ -11,11 +11,12 @@ export default function MarketHeatmapView({ onSelectStock }) {
   const [selectedSector, setSelectedSector] = useState('all');
   const [capFilter, setCapFilter] = useState('all'); // 'all', 'large', 'mid', 'small'
   const [hoveredStock, setHoveredStock] = useState(null);
+  const [fnoOnly, setFnoOnly] = useState(false);
 
-  const fetchHeatmap = async () => {
+  const fetchHeatmap = async (currentFno = fnoOnly) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/market/heatmap?limit=150');
+      const res = await fetch(`/api/market/heatmap?limit=150&fno_only=${currentFno}`);
       if (res.ok) {
         const data = await res.json();
         setTreeData(data.tree || []);
@@ -29,8 +30,8 @@ export default function MarketHeatmapView({ onSelectStock }) {
   };
 
   useEffect(() => {
-    fetchHeatmap();
-  }, []);
+    fetchHeatmap(fnoOnly);
+  }, [fnoOnly]);
 
   const getHeatmapColor = (chg) => {
     if (chg >= 3.0) return 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400/40 text-white';
@@ -65,14 +66,29 @@ export default function MarketHeatmapView({ onSelectStock }) {
           </div>
         </div>
 
-        <button
-          onClick={fetchHeatmap}
-          disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-400' : ''}`} />
-          <span>Refresh Heatmap</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Universal F&O Toggle */}
+          <button
+            onClick={() => setFnoOnly(prev => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+              fnoOnly
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-md shadow-amber-950/30'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+            }`}
+          >
+            <Zap className={`w-3.5 h-3.5 ${fnoOnly ? 'text-amber-400' : 'text-slate-500'}`} />
+            <span>F&amp;O Only: {fnoOnly ? 'ON' : 'OFF'}</span>
+          </button>
+
+          <button
+            onClick={() => fetchHeatmap(fnoOnly)}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-400' : ''}`} />
+            <span>Refresh Heatmap</span>
+          </button>
+        </div>
       </div>
 
       {/* Legend & Filter Controls */}

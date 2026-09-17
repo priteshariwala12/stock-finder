@@ -8,12 +8,13 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
   const [marketPic, setMarketPic] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'gainers', 'losers', 'volume', 'highs'
+  const [exchange, setExchange] = useState('NSE'); // 'NSE' or 'BSE'
   const [fnoOnly, setFnoOnly] = useState(false);
 
-  const fetchMarketPicture = async () => {
+  const fetchMarketPicture = async (currentEx = exchange, currentFno = fnoOnly) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/market/picture');
+      const res = await fetch(`/api/market/picture?exchange=${currentEx}&fno_only=${currentFno}`);
       if (res.ok) {
         const data = await res.json();
         setMarketPic(data);
@@ -26,8 +27,8 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
   };
 
   useEffect(() => {
-    fetchMarketPicture();
-  }, []);
+    fetchMarketPicture(exchange, fnoOnly);
+  }, [exchange, fnoOnly]);
 
   const breadth = marketPic?.breadth || { advances: 0, declines: 0, unchanged: 0, ad_ratio: 1.0 };
   const totalStocks = (breadth.advances || 0) + (breadth.declines || 0) + (breadth.unchanged || 0) || 1;
@@ -54,20 +55,49 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
-              Market Picture
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-black tracking-tight text-white">
+                Market Picture
+              </h1>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                Official Live {exchange} Feed
+              </span>
+            </div>
             <p className="text-xs text-slate-400">
               Live market momentum pulse: Top Gainers, Top Losers, Volume Shockers, and 52W High Breakouts.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Segmented NSE / BSE Exchange Toggle Button */}
+          <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner">
+            <button
+              onClick={() => setExchange('NSE')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                exchange === 'NSE'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50 scale-[1.02]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              NSE
+            </button>
+            <button
+              onClick={() => setExchange('BSE')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                exchange === 'BSE'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50 scale-[1.02]'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              BSE
+            </button>
+          </div>
+
           {/* F&O Toggle */}
           <button
             onClick={() => setFnoOnly(prev => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
               fnoOnly
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-md shadow-amber-950/30'
                 : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
@@ -78,9 +108,9 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
           </button>
 
           <button
-            onClick={fetchMarketPicture}
+            onClick={() => fetchMarketPicture(exchange, fnoOnly)}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
             <span>Refresh</span>
