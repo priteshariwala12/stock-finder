@@ -122,18 +122,10 @@ export default function TopHeader({
           </button>
         </div>
 
-        <div className="hidden xl:flex flex-col">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
-              {viewInfo.title}
-            </h1>
-            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
-              LIVE
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400 truncate max-w-xs">
-            {viewInfo.desc}
-          </span>
+        <div className="hidden xl:flex items-center gap-2 pl-1 border-l border-slate-800">
+          <h1 className="text-xs font-bold text-slate-300 tracking-tight">
+            {viewInfo.title}
+          </h1>
         </div>
       </div>
 

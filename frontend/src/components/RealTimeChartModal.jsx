@@ -519,7 +519,7 @@ function RealTimeChartModalInner({
           {isLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/60 backdrop-blur-[2px]">
               <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin mb-2" />
-              <p className="text-xs font-semibold text-slate-300">Loading Fyers 0-Delay Candlesticks...</p>
+              <p className="text-xs font-semibold text-slate-300">Loading chart...</p>
             </div>
           )}
 
@@ -547,14 +547,12 @@ function RealTimeChartModalInner({
         </div>
 
         {/* Modal Bottom Strip */}
-        <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 shrink-0 gap-2">
+        <div className="px-5 py-2 bg-slate-950 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 shrink-0 gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 text-indigo-300 font-medium">
               <Clock className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Current IST Time: <b className="text-white font-mono text-xs">{currentIstTime}</b></span>
+              <span>IST: <b className="text-white font-mono text-xs">{currentIstTime}</b></span>
             </div>
-            <span className="text-slate-600 hidden sm:inline">•</span>
-            <span className="hidden sm:inline">Timezone: <b>IST (UTC+5:30)</b> • Live Candlesticks updating every 3s via Fyers WebSocket & API</span>
           </div>
           <div className="text-[11px] text-slate-500">
             Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">ESC</kbd> to exit chart

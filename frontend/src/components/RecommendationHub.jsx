@@ -181,13 +181,13 @@ export default function RecommendationHub({ onSelectStock }) {
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                 Trade Recommendation Hub
-                <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
-                  Claude.ai & Quantitative Models
+                <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                  AI Quantitative Models
                 </span>
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Curated signals across <strong className="text-fuchsia-300">🚀 Multi-Baggers (Claude.ai)</strong>, <strong className="text-amber-300">⚡ Intraday (1m TF)</strong>, <strong className="text-indigo-300">🌊 Swing Trading</strong>, and <strong className="text-emerald-300">📦 Delivery Base</strong> with exact price zones, strict risk controls, and audited performance history.
+              Curated signals across <strong className="text-fuchsia-300">🚀 Multi-Baggers</strong>, <strong className="text-amber-300">⚡ Intraday</strong>, <strong className="text-indigo-300">🌊 Swing Trading</strong>, and <strong className="text-emerald-300">📦 Delivery Base</strong> with exact price zones, strict risk controls, and audited performance history.
             </p>
           </div>
 
@@ -280,7 +280,7 @@ export default function RecommendationHub({ onSelectStock }) {
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1 text-xs font-bold py-2">
             {[
-              { id: 'multibagger', label: '🚀 Multi-Baggers (Claude.ai)', count: activeCalls.filter(r => r.category === 'multibagger').length, icon: Rocket, highlight: true },
+              { id: 'multibagger', label: '🚀 Multi-Baggers', count: activeCalls.filter(r => r.category === 'multibagger').length, icon: Rocket, highlight: true },
               { id: 'all', label: 'All Active Calls', count: activeCalls.length, icon: Flame },
               { id: 'intraday', label: 'Intraday (1m TF)', count: activeCalls.filter(r => r.category === 'intraday').length, icon: Zap },
               { id: 'swing', label: 'Swing Trading', count: activeCalls.filter(r => r.category === 'swing').length, icon: TrendingUp },
@@ -323,7 +323,7 @@ export default function RecommendationHub({ onSelectStock }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 flex items-center gap-1 shadow-sm shadow-fuchsia-500/20">
                     <Sparkles className="w-3 h-3 text-fuchsia-400" />
-                    Claude.ai Multi-Factor Synthesis
+                    Quantitative Multi-Factor Synthesis
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
                     Penny Stocks (&lt; ₹100)
@@ -336,7 +336,7 @@ export default function RecommendationHub({ onSelectStock }) {
                   🚀 Multi-Bagger Penny Stock Discovery
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 mt-1.5 max-w-3xl leading-relaxed">
-                  Micro-cap & penny turnaround candidates under ₹100 evaluated by <strong>Claude.ai</strong> on balance sheet deleveraging, ROCE surge (&gt;15%), high promoter skin-in-the-game, institutional delivery accumulation, and multi-year Stage-1 base breakouts.
+                  Micro-cap & penny turnaround candidates under ₹100 evaluated on balance sheet deleveraging, ROCE surge (&gt;15%), high promoter skin-in-the-game, institutional delivery accumulation, and multi-year Stage-1 base breakouts.
                 </p>
               </div>
 
@@ -476,13 +476,13 @@ export default function RecommendationHub({ onSelectStock }) {
                         </div>
                       </div>
 
-                      {/* CLAUDE.AI CONFIDENCE & SCORE BAR FOR MULTI-BAGGERS */}
+                      {/* QUANT CONFIDENCE & SCORE BAR FOR MULTI-BAGGERS */}
                       {isMb && (
                         <div className="my-3 p-3 rounded-xl bg-gradient-to-r from-fuchsia-950/40 via-purple-950/30 to-slate-900/60 border border-fuchsia-800/40 space-y-2">
                           <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                             <div className="flex items-center gap-1.5">
                               <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
-                              <span className="font-extrabold text-white text-[11px]">Claude.ai Confidence:</span>
+                              <span className="font-extrabold text-white text-[11px]">Model Confidence:</span>
                               <span className="font-black text-fuchsia-300 text-xs">{rec.claude_confidence || 92}%</span>
                             </div>
                             <div className="flex items-center gap-2 text-[10px]">
@@ -593,7 +593,7 @@ export default function RecommendationHub({ onSelectStock }) {
                         </div>
                       </div>
 
-                      {/* CLAUDE.AI DEEP THESIS ACCORDION */}
+                      {/* QUANT DEEP THESIS ACCORDION */}
                       {isMb && thesisObj && (
                         <div className="my-3 rounded-xl bg-slate-950/80 border border-fuchsia-900/40 overflow-hidden">
                           <button
@@ -602,7 +602,7 @@ export default function RecommendationHub({ onSelectStock }) {
                           >
                             <div className="flex items-center gap-1.5">
                               <Cpu className="w-3.5 h-3.5 text-fuchsia-400" />
-                              <span>Claude.ai Multi-Bagger Synthesis</span>
+                              <span>Quantitative Multi-Bagger Synthesis</span>
                               <span className="text-[9px] font-normal text-slate-400 ml-1">(4-Pillar Deep Research)</span>
                             </div>
                             {expandedTheses[rec.id] ? <ChevronUp className="w-3.5 h-3.5 text-fuchsia-400" /> : <ChevronDown className="w-3.5 h-3.5 text-fuchsia-400" />}

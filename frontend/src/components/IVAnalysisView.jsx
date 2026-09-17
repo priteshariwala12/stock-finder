@@ -311,18 +311,14 @@ export default function IVAnalysisView({ onSelectStock }) {
                 </button>
                 <button
                   onClick={() => setChartViewMode('chain')}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     chartViewMode === 'chain'
                       ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
                       : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
-                  Full NSE Option Chain Table ({chartData.real_strikes?.length || 0} strikes)
+                  Full Option Chain Table ({chartData.real_strikes?.length || 0} strikes)
                 </button>
-              </div>
-
-              <div className="text-[11px] text-slate-400 font-mono hidden md:block">
-                Source: {chartData.source || 'NSE India Live API'}
               </div>
             </div>
 

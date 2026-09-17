@@ -268,12 +268,10 @@ export default function TradingViewStrikeModal({
         {/* Modal Footer Note */}
         <div className="px-4 py-2 bg-slate-950 border-t border-slate-800 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             <span>Ticker: <code className="text-indigo-300 font-mono bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">{activeTvSymbol}</code></span>
-            <span className="text-slate-500">|</span>
-            <span>Switch timeframes, indicators, and drawings inside chart</span>
           </div>
-          <span className="text-slate-500">Powered by TradingView Advanced Charting</span>
+          <span className="text-slate-500">ESC to exit</span>
         </div>
       </div>
     </div>

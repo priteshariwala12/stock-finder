@@ -224,7 +224,7 @@ export default function FilterSidebar({
                   Multi-Baggers (&lt; ₹100)
                 </span>
                 <p className="text-[11px] text-slate-300 mt-0.5">
-                  Claude.ai model: Price &lt; ₹100, ROCE &gt; 12%, Low Debt
+                  Quant model: Price &lt; ₹100, ROCE &gt; 12%, Low Debt
                 </p>
               </div>
               <button

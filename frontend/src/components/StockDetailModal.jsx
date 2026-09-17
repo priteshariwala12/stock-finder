@@ -274,7 +274,7 @@ export default function StockDetailModal({ symbol, onClose }) {
                           </span>
                           <div>
                             <span className="font-extrabold text-white text-xs flex items-center gap-1.5">
-                              Claude.ai Multi-Bagger Conviction Setup
+                              AI Quantitative Multi-Bagger Setup
                               <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
                             </span>
                             <span className="text-[10px] text-fuchsia-300 font-bold block">

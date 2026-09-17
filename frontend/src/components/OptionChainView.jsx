@@ -547,26 +547,24 @@ export default function OptionChainView({ onSelectStock }) {
       {/* FROZEN MAIN PANE: Indices, Search, Controls & Market Metrics */}
       {/* Always pinned & frozen at top when user scrolls or page downs*/}
       {/* ============================================================ */}
+      {/* ============================================================ */}
+      {/* CLEAN 2-ROW HEADER: Pinned Navigation, Controls & Metrics */}
+      {/* ============================================================ */}
       <div className={`shrink-0 sticky top-0 bg-slate-900 border-b border-slate-800 shadow-md ${isSearchOpen ? 'z-50' : 'z-20'}`}>
-        {/* Tier 1 & Tier 2: Indices, Search, Expiry, Strikes, Refresh */}
-        <div className="p-3 sm:p-4 pb-2.5 flex flex-col gap-3">
-          {/* Tier 1: Index Pills & F&O Stock Search */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Popular Index Switchers */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline mr-1 flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                Indices:
-              </span>
+        {/* ROW 1: Symbol Selection, Search & Primary Actions */}
+        <div className="px-3 py-2 flex flex-wrap items-center justify-between gap-2.5">
+          {/* Left: Popular Indices & Search */}
+          <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
               {POPULAR_INDICES.map(idx => {
                 const isActive = selectedSymbol === idx.symbol;
                 return (
                   <button
                     key={idx.symbol}
                     onClick={() => handleSelectSymbol(idx.symbol)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                       isActive
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/50 scale-102'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 border border-indigo-400/40'
                         : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60'
                     }`}
                   >
@@ -584,7 +582,7 @@ export default function OptionChainView({ onSelectStock }) {
             </div>
 
             {/* Searchable F&O Stocks Dropdown */}
-            <div className={`relative flex-1 sm:max-w-md min-w-[220px] transition-all duration-200 ${isSearchOpen ? 'z-50' : 'z-20'}`} ref={searchContainerRef}>
+            <div className={`relative flex-1 sm:max-w-xs min-w-[180px] transition-all duration-200 ${isSearchOpen ? 'z-50' : 'z-20'}`} ref={searchContainerRef}>
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -595,11 +593,11 @@ export default function OptionChainView({ onSelectStock }) {
                     setIsSearchOpen(true);
                   }}
                   onFocus={() => setIsSearchOpen(true)}
-                  placeholder="Search 210+ F&O Stocks (e.g. RELIANCE, TCS)..."
-                  className="w-full pl-9 pr-16 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50 shadow-xl"
+                  placeholder="Search F&O stocks..."
+                  className="w-full pl-8 pr-8 py-1 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
                   style={{ backgroundColor: '#09090b', opacity: 1 }}
                 />
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                   {searchStock && (
                     <button
                       onClick={() => setSearchStock('')}
@@ -609,22 +607,17 @@ export default function OptionChainView({ onSelectStock }) {
                       ✕
                     </button>
                   )}
-                  {isSearchOpen && (
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono select-none">
-                      ESC
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {/* Dropdown Options Overlay - Completely Opaque & Non-Transparent */}
+              {/* Dropdown Options Overlay */}
               {isSearchOpen && (
                 <div 
-                  className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-slate-700 shadow-2xl shadow-black max-h-80 overflow-y-auto z-50 p-1 divide-y divide-slate-800"
+                  className="absolute top-full left-0 right-0 mt-1.5 rounded-xl border border-slate-700 shadow-2xl shadow-black max-h-80 overflow-y-auto z-50 p-1 divide-y divide-slate-800"
                   style={{ backgroundColor: '#0f172a', opacity: 1 }}
                 >
                   <div 
-                    className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-800"
+                    className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-800"
                     style={{ backgroundColor: '#0f172a' }}
                   >
                     <span>F&O Equities & Indices</span>
@@ -634,7 +627,7 @@ export default function OptionChainView({ onSelectStock }) {
                     <button
                       key={stk.symbol}
                       onClick={() => handleSelectSymbol(stk.symbol)}
-                      className="w-full px-3 py-2 text-left rounded-lg hover:bg-slate-800 flex items-center justify-between text-xs transition-colors group cursor-pointer"
+                      className="w-full px-3 py-1.5 text-left rounded-lg hover:bg-slate-800 flex items-center justify-between text-xs transition-colors group cursor-pointer"
                       style={{ backgroundColor: '#0f172a' }}
                     >
                       <div>
@@ -658,7 +651,7 @@ export default function OptionChainView({ onSelectStock }) {
                   ))}
                   {filteredStocks.length === 0 && (
                     <div 
-                      className="p-4 text-center text-xs text-slate-400"
+                      className="p-3 text-center text-xs text-slate-400"
                       style={{ backgroundColor: '#0f172a' }}
                     >
                       No F&O stocks matching "{searchStock}"
@@ -669,258 +662,197 @@ export default function OptionChainView({ onSelectStock }) {
             </div>
           </div>
 
-          {/* Tier 2: Expiry Selection, Strike Range Filter, Refresh & Market Status */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/60">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Expiry Selector */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400 font-medium">Expiry:</span>
-                <div className="relative">
-                  <select
-                    value={selectedExpiry}
-                    onChange={(e) => setSelectedExpiry(e.target.value)}
-                    className="bg-slate-950 border border-slate-700/90 rounded-lg px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 pr-7 cursor-pointer appearance-none"
-                  >
-                    {(chainData?.available_expiries || []).map(exp => (
-                      <option key={exp} value={exp}>
-                        {exp}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
+          {/* Right: Paper Trading, Focus ATM, Refresh, Broker Status */}
+          <div className="flex items-center gap-2">
+            {/* Paper Trading Terminal Toggle */}
+            <button
+              onClick={() => setIsPaperTerminalOpen(!isPaperTerminalOpen)}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                isPaperTerminalOpen || paperLegs.length > 0 || deployedTradesCount > 0
+                  ? 'bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white border-emerald-400/60 shadow-emerald-500/20'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title="Open Paper Trading Terminal"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-300" />
+              <span>Paper Trading</span>
+              {(paperLegs.length > 0 || deployedTradesCount > 0) && (
+                <span className="px-1.5 py-0.2 rounded-full bg-white text-indigo-900 text-[10px] font-black">
+                  {deployedTradesCount > 0 ? `${deployedTradesCount} Pos` : `${paperLegs.length}`}
+                </span>
+              )}
+            </button>
 
-              {/* Strike Filter Range */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400 font-medium">Strikes:</span>
-                <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-                  {['10', '20', '30', 'all'].map(rng => (
-                    <button
-                      key={rng}
-                      onClick={() => setStrikeRange(rng)}
-                      className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
-                        strikeRange === rng
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {rng === 'all' ? 'All' : `±${rng}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Focus ATM Button */}
+            <button
+              onClick={() => scrollToAtm(true)}
+              className="px-2.5 py-1 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/50 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+              title="Scroll directly to At-The-Money (ATM) strike price"
+            >
+              <Target className="w-3.5 h-3.5 text-indigo-400" />
+              <span>ATM {chainData?.atm_strike ? `(₹${chainData.atm_strike.toLocaleString('en-IN')})` : ''}</span>
+            </button>
 
-              {/* Auto Refresh & Speed Controls */}
-              <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 gap-1 text-xs">
-                <button
-                  onClick={() => setAutoRefresh(!autoRefresh)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    autoRefresh
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Toggle real-time auto-refresh"
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
-                  <span>{autoRefresh ? 'Live' : 'Paused'}</span>
-                </button>
+            {/* Refresh button */}
+            <button
+              onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, true)}
+              disabled={isRefreshing}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+              title="Fetch fresh real-time option chain"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
+            </button>
 
-                {autoRefresh && (
-                  <div className="flex items-center gap-0.5 pl-1 border-l border-slate-800">
-                    {(fyersStatus.authenticated ? [1, 2, 5] : [10, 15, 30]).map(sec => (
-                      <button
-                        key={sec}
-                        onClick={() => setRefreshInterval(sec)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
-                          refreshInterval === sec
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                        }`}
-                        title={
-                          fyersStatus.authenticated
-                            ? `Stream live tick data every ${sec} second(s) via Fyers broker API`
-                            : `Refresh every ${sec}s (exchange-safe rate limit). Connect Fyers for 1s live streaming.`
-                        }
-                      >
-                        {sec}s
-                      </button>
-                    ))}
-                    {!fyersStatus.authenticated && (
-                      <button
-                        onClick={() => setIsFyersModalOpen(true)}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer ml-0.5"
-                        title="Click to connect free Fyers broker API for 1-second real-time tick streaming"
-                      >
-                        ⚡ 1s?
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Action: Paper Trading, Focus ATM, Refresh button & TradingView Tip */}
-            <div className="flex items-center gap-2">
-              {/* Paper Trading Terminal Toggle */}
-              <button
-                onClick={() => setIsPaperTerminalOpen(!isPaperTerminalOpen)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-                  isPaperTerminalOpen || paperLegs.length > 0 || deployedTradesCount > 0
-                    ? 'bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white border-emerald-400/60 shadow-emerald-500/20'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                }`}
-                title="Open Paper Trading & Strategy Payoff Terminal"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>Paper Trading</span>
-                {(paperLegs.length > 0 || deployedTradesCount > 0) && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-white text-indigo-900 text-[10px] font-black">
-                    {deployedTradesCount > 0 ? `${deployedTradesCount} Pos` : `${paperLegs.length}`}
-                  </span>
-                )}
-              </button>
-
-              {/* Focus ATM Button */}
-              <button
-                onClick={() => scrollToAtm(true)}
-                className="px-2.5 py-1.5 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/50 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                title="Scroll directly to At-The-Money (ATM) strike price"
-              >
-                <Target className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                <span>Focus ATM {chainData?.atm_strike ? `(₹${chainData.atm_strike.toLocaleString('en-IN')})` : ''}</span>
-              </button>
-
-              <button
-                onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, true)}
-                disabled={isRefreshing}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                title="Fetch fresh real-time option chain from exchange"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
-                <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
-              </button>
-
-              {/* Info Badge */}
-              <div className="hidden xl:flex items-center gap-1.5 text-[11px] text-emerald-300 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
-                <BarChart2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Click any <b>Strike</b>, <b>LTP</b>, or <b>Spot</b> for <b>Real-Time 0-Delay Candlestick Chart</b></span>
-              </div>
-            </div>
+            {/* Subtle Broker Icon Button */}
+            <button
+              onClick={() => setIsFyersModalOpen(true)}
+              className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                fyersStatus.authenticated
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+              title={fyersStatus.authenticated ? "Fyers 1s Stream Active (Click to manage)" : "Connect Fyers Broker API for 1s Stream"}
+            >
+              <Zap className={`w-3.5 h-3.5 ${fyersStatus.authenticated ? 'text-emerald-400' : 'text-slate-500'}`} />
+            </button>
           </div>
         </div>
 
-        {/* Tier 3: Market Status Banner & Derivatives Metrics Strip */}
-        <div className="px-4 py-2 border-t border-slate-800/80 bg-slate-950/70 flex flex-wrap items-center justify-between gap-4">
-          {/* Market Status & Underlying Spot */}
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Live / Market Closed Tag */}
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-xs font-bold ${
-              chainData?.is_market_open
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-sm shadow-emerald-500/10'
-                : 'bg-amber-500/10 text-amber-300 border-amber-500/30 shadow-sm shadow-amber-500/10'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${chainData?.is_market_open ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
-              <span>{chainData?.market_status_label || (chainData?.is_market_open ? 'LIVE MARKET' : 'MARKET CLOSED')}</span>
-            </div>
-
-            {/* Live IST Time Badge */}
-            {chainData?.as_of_time && (
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg shadow-sm">
-                <Clock className="w-3 h-3 text-indigo-400" />
-                <span>{chainData.as_of_time}</span>
-              </span>
-            )}
-
-            {/* Live Feed Source & 1-Click Broker Connector */}
-            {chainData?.feed_source === 'FYERS_API_V3' ? (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                ⚡ Fyers 1s Stream Active
-              </span>
-            ) : chainData?.feed_source === 'HYBRID_CACHE_LIVE_SPOT' ? (
-              <button
-                onClick={() => setIsFyersModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] font-bold transition-all cursor-pointer shadow-sm hover:scale-102"
-                title="Live spot price with cached closing strikes. Connect Fyers for 1s real-time tick streaming"
-              >
-                <Zap className="w-3 h-3 text-indigo-400 animate-pulse" />
-                <span>Live Spot Feed • Connect Fyers for 1s</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsFyersModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-mono text-[11px] font-bold transition-all cursor-pointer shadow-sm hover:scale-102"
-                title="Click to connect Fyers for 1-second sub-second real-time streaming"
-              >
-                <Zap className="w-3 h-3 text-amber-400" />
-                <span>NSE Feed (Connect Fyers for 1s Live)</span>
-              </button>
-            )}
-
-            {/* Underlying Spot Price (Clickable to open Real-Time Chart) */}
-            <div 
-              onClick={() => openChartModal(null, null)}
-              className="flex items-center gap-2.5 cursor-pointer group/spot hover:opacity-90 transition-all flex-wrap"
-              title={`View ${chainData?.name || selectedSymbol} Real-Time 0-Delay Candlestick Chart`}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black text-white tracking-tight group-hover/spot:text-indigo-300 flex items-center gap-1">
-                  {chainData?.name || selectedSymbol}
-                  <BarChart2 className="w-3.5 h-3.5 text-indigo-400 inline opacity-70 group-hover/spot:opacity-100" />
-                </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                  Lot: {chainData?.lot_size ? chainData.lot_size.toLocaleString('en-IN') : '—'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-black text-white font-mono">
-                  ₹{chainData?.underlying_price?.toLocaleString('en-IN') || '—'}
-                </span>
-
-                {/* Points and percentages of change from last session beside specific symbol */}
-                {chainData?.underlying_change !== undefined && chainData?.underlying_change !== null && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-lg border shadow-sm ${
-                    chainData.underlying_change >= 0 
-                      ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30 shadow-emerald-500/10' 
-                      : 'text-rose-400 bg-rose-500/15 border-rose-500/30 shadow-rose-500/10'
-                  }`}>
-                    {chainData.underlying_change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    <span>{chainData.underlying_change >= 0 ? '+' : ''}{chainData.underlying_change.toLocaleString('en-IN')}</span>
-                    <span>({chainData.underlying_pchange >= 0 ? '+' : ''}{chainData.underlying_pchange}%)</span>
-                  </span>
-                )}
+        {/* ROW 2: Filters, Live Spot Price & Key Metrics Ribbon */}
+        <div className="px-3 py-1.5 border-t border-slate-800 bg-slate-950/70 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          {/* Left: Expiry, Strikes Range & Auto-Refresh */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Expiry Selector */}
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 font-medium text-[11px]">Expiry:</span>
+              <div className="relative">
+                <select
+                  value={selectedExpiry}
+                  onChange={(e) => setSelectedExpiry(e.target.value)}
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-0.5 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 pr-5 cursor-pointer appearance-none"
+                >
+                  {(chainData?.available_expiries || []).map(exp => (
+                    <option key={exp} value={exp}>
+                      {exp}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
-            {/* Session Note */}
-            {chainData?.session_note && (
-              <span className="text-[11px] text-slate-400 hidden lg:inline">
-                • {chainData.session_note}
+            {/* Strike Filter Range */}
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 font-medium text-[11px]">Strikes:</span>
+              <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                {['10', '20', '30', 'all'].map(rng => (
+                  <button
+                    key={rng}
+                    onClick={() => setStrikeRange(rng)}
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      strikeRange === rng
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {rng === 'all' ? 'All' : `±${rng}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Auto Refresh & Speed Controls */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 gap-1 text-[11px]">
+              <button
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                className={`px-2 py-0.5 rounded font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  autoRefresh
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Toggle real-time auto-refresh"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                <span>{autoRefresh ? 'Auto' : 'Off'}</span>
+              </button>
+
+              {autoRefresh && (
+                <div className="flex items-center gap-0.5 pl-1 border-l border-slate-800">
+                  {(fyersStatus.authenticated ? [1, 2, 5] : [10, 15, 30]).map(sec => (
+                    <button
+                      key={sec}
+                      onClick={() => setRefreshInterval(sec)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                        refreshInterval === sec
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      {sec}s
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Center: Spot Price with Points and Percentage Change */}
+          <div 
+            onClick={() => openChartModal(null, null)}
+            className="flex items-center gap-2 cursor-pointer group/spot hover:opacity-90 transition-all"
+            title={`View ${chainData?.name || selectedSymbol} Chart`}
+          >
+            <span className="text-xs font-black text-white group-hover/spot:text-indigo-300">
+              {chainData?.name || selectedSymbol}
+            </span>
+            {chainData?.lot_size && (
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                Lot: {chainData.lot_size.toLocaleString('en-IN')}
+              </span>
+            )}
+            <span className="text-sm font-black text-white font-mono">
+              ₹{chainData?.underlying_price?.toLocaleString('en-IN') || '—'}
+            </span>
+            {chainData?.underlying_change !== undefined && chainData?.underlying_change !== null && (
+              <span className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                chainData.underlying_change >= 0 
+                  ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' 
+                  : 'text-rose-400 bg-rose-500/15 border-rose-500/30'
+              }`}>
+                {chainData.underlying_change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{chainData.underlying_change >= 0 ? '+' : ''}{chainData.underlying_change.toLocaleString('en-IN')}</span>
+                <span>({chainData.underlying_pchange >= 0 ? '+' : ''}{chainData.underlying_pchange}%)</span>
               </span>
             )}
           </div>
 
-          {/* Derivatives Metrics: PCR, Max Pain, ATM Straddle */}
-          <div className="flex items-center gap-4 text-xs flex-wrap">
-            {/* PCR Indicator */}
-            <div className={`px-2.5 py-1 rounded-lg border flex items-center gap-2 ${pcrColor}`}>
-              <span className="font-semibold text-slate-400">PCR:</span>
-              <span className="font-mono font-black text-sm">{chainData?.pcr_oi || '—'}</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider hidden sm:inline">({pcrSentiment})</span>
+          {/* Right: Derivatives Metrics & Market Status Indicator */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* PCR */}
+            <div className={`px-2 py-0.5 rounded-lg border flex items-center gap-1 text-xs ${pcrColor}`}>
+              <span className="text-slate-400 font-medium text-[11px]">PCR:</span>
+              <span className="font-mono font-bold">{chainData?.pcr_oi || '—'}</span>
             </div>
 
-            {/* Max Pain Strike */}
-            <div className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500">Max Pain:</span>
+            {/* Max Pain */}
+            <div className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1 text-slate-300 text-xs">
+              <span className="text-slate-500 text-[11px]">Max Pain:</span>
               <span className="font-mono font-bold text-amber-300">₹{chainData?.max_pain_strike?.toLocaleString('en-IN') || '—'}</span>
             </div>
 
             {/* ATM Straddle */}
-            <div className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500">ATM Straddle:</span>
+            <div className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-1 text-slate-300 text-xs">
+              <span className="text-slate-500 text-[11px]">Straddle:</span>
               <span className="font-mono font-bold text-cyan-300">₹{chainData?.atm_straddle_price || '—'}</span>
+            </div>
+
+            {/* Market Status Dot + Time */}
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pl-1 border-l border-slate-800">
+              <span className={`w-2 h-2 rounded-full ${chainData?.is_market_open ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
+              <span className="font-medium text-slate-300">{chainData?.is_market_open ? 'Live' : 'Closed'}</span>
+              {chainData?.as_of_time && (
+                <span className="font-mono text-slate-500 hidden sm:inline">{chainData.as_of_time}</span>
+              )}
             </div>
           </div>
         </div>
@@ -940,17 +872,11 @@ export default function OptionChainView({ onSelectStock }) {
           >
             {/* Initial full loading overlay - only shown when NO data is rendered yet */}
             {isLoading && !chainData && (
-              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center min-h-[360px] gap-4">
-                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-2xl">
-                  <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-xs font-semibold">Streaming authentic option chain from NSE...</span>
+              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center min-h-[360px] gap-3">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-xl">
+                  <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs font-medium">Loading option chain...</span>
                 </div>
-                <button
-                  onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, false)}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-all cursor-pointer shadow-lg"
-                >
-                  Load Cached Strikes Snapshot
-                </button>
               </div>
             )}
 
@@ -1196,16 +1122,10 @@ export default function OptionChainView({ onSelectStock }) {
                         <span className="text-xs font-semibold">No strikes currently loaded for {selectedSymbol}.</span>
                         <div className="flex items-center gap-2 mt-1">
                           <button
-                            onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, false)}
-                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
+                            onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, true)}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer transition-all shadow-sm"
                           >
-                            Load Cached Strikes Snapshot
-                          </button>
-                          <button
-                            onClick={() => setIsFyersModalOpen(true)}
-                            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
-                          >
-                            Connect Fyers for Live Feed
+                            Retry Fetch
                           </button>
                         </div>
                       </div>
@@ -1217,11 +1137,9 @@ export default function OptionChainView({ onSelectStock }) {
           </div>
 
           {/* 4. Table Footer Summary */}
-          <div className="p-3 border-t border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
+          <div className="px-4 py-2 border-t border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
             <div className="flex items-center gap-3">
               <span>Showing {visibleStrikes.length} of {chainData?.total_strikes || 0} strikes</span>
-              <span className="text-slate-600">•</span>
-              <span>Source: Official National Stock Exchange of India (NSE)</span>
             </div>
 
             <div className="flex items-center gap-3 text-[11px]">
