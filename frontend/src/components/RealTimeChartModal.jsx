@@ -97,6 +97,7 @@ function RealTimeChartModalInner({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hoveredCandle, setHoveredCandle] = useState(null);
+  const [latestCandle, setLatestCandle] = useState(null);
   const lastCandleRef = useRef(null);
   const [currentIstTime, setCurrentIstTime] = useState(() => {
     return new Date().toLocaleTimeString('en-IN', {
@@ -191,7 +192,7 @@ function RealTimeChartModalInner({
         const lastCandle = unique[unique.length - 1];
         if (lastCandle) {
           lastCandleRef.current = lastCandle;
-          setHoveredCandle(prev => prev || lastCandle);
+          setLatestCandle(lastCandle);
           setLiveInfo(prev => ({
             ...prev,
             ltp: lastCandle.close,
@@ -299,9 +300,7 @@ function RealTimeChartModalInner({
       // Crosshair listener for header stats
       chart.subscribeCrosshairMove(param => {
         if (!param || !param.time || !param.seriesData) {
-          if (lastCandleRef.current) {
-            setHoveredCandle(lastCandleRef.current);
-          }
+          setHoveredCandle(null);
           return;
         }
         const data = param.seriesData.get(candleSeries);
@@ -312,8 +311,8 @@ function RealTimeChartModalInner({
             volume: vData?.value,
             time: param.time
           });
-        } else if (lastCandleRef.current) {
-          setHoveredCandle(lastCandleRef.current);
+        } else {
+          setHoveredCandle(null);
         }
       });
 
@@ -359,7 +358,7 @@ function RealTimeChartModalInner({
   if (!isOpen) return null;
 
   const displayTitle = contractTitle || effectiveSymbol.replace('NSE:', '').replace('-INDEX', '').replace('-EQ', '');
-  const activeCandle = hoveredCandle;
+  const activeCandle = hoveredCandle || latestCandle || lastCandleRef.current;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -552,11 +551,7 @@ function RealTimeChartModalInner({
 
           <div 
             ref={chartContainerRef} 
-            onMouseLeave={() => {
-              if (lastCandleRef.current) {
-                setHoveredCandle(lastCandleRef.current);
-              }
-            }}
+            onMouseLeave={() => setHoveredCandle(null)}
             className="w-full h-full" 
           />
         </div>
