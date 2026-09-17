@@ -592,6 +592,7 @@ def build_option_chain_response(
         "session_note": m_info["session_note"],
         "is_market_open": m_info["is_open"],
         "is_cached_snapshot": is_cached,
+        "feed_source": "NSE_LIVE" if not is_cached else "CACHED_SNAPSHOT",
         "as_of_time": m_info["ist_time"],
         "lot_size": lot_size,
         "atm_strike": atm_strike,

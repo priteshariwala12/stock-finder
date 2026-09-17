@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, EmailStr
@@ -1120,10 +1120,14 @@ def api_get_option_symbols():
 
 @app.get("/api/option-chain/data")
 def api_get_option_chain_data(
+    response: Response,
     symbol: str = Query("NIFTY", description="Index or Stock symbol"),
     expiry: Optional[str] = Query(None, description="Expiry date string"),
     force: bool = Query(False, description="Force refresh from exchange")
 ):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     try:
         return get_live_option_chain(symbol=symbol, expiry=expiry, force_refresh=force, db_path=DB_PATH)
     except Exception as e:
@@ -1132,10 +1136,14 @@ def api_get_option_chain_data(
 
 @app.get("/api/chart/history")
 def api_get_chart_history(
+    response: Response,
     symbol: str = Query("NIFTY", description="Symbol e.g. NIFTY, RELIANCE, NSE:NIFTY2692223100CE"),
     resolution: str = Query("5", description="Interval: 1, 2, 3, 5, 15, 30, 60, D"),
     days: int = Query(3, description="Lookback days")
 ):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     try:
         from fyers_service import fetch_candlestick_history
         return fetch_candlestick_history(symbol=symbol, resolution=resolution, days=days)

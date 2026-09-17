@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Layers, Search, RefreshCw, ChevronDown, Activity, Zap, 
   ExternalLink, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
-  ShieldCheck, AlertCircle, Info, Filter, Clock, Eye, BarChart2, Target
+  ShieldCheck, AlertCircle, Info, Filter, Clock, Eye, BarChart2, Target,
+  X, CheckCircle2, Key
 } from 'lucide-react';
 import RealTimeChartModal from './RealTimeChartModal';
 import PaperTradingTerminal from './PaperTradingTerminal';
@@ -106,6 +107,57 @@ export default function OptionChainView({ onSelectStock }) {
     };
   }, []);
 
+  // Fyers API v3 Auth Status & 1-Click Connector Modal
+  const [fyersStatus, setFyersStatus] = useState({ authenticated: false, auth_url: '' });
+  const [isFyersModalOpen, setIsFyersModalOpen] = useState(false);
+  const [fyersAuthInput, setFyersAuthInput] = useState('');
+  const [isConnectingFyers, setIsConnectingFyers] = useState(false);
+  const [fyersMsg, setFyersMsg] = useState(null);
+
+  const checkFyersStatus = async () => {
+    try {
+      const res = await fetch('/api/fyers/status', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setFyersStatus(data);
+      }
+    } catch (e) {
+      console.error('Failed to check Fyers status:', e);
+    }
+  };
+
+  useEffect(() => {
+    checkFyersStatus();
+  }, []);
+
+  const handleConnectFyers = async (e) => {
+    e.preventDefault();
+    if (!fyersAuthInput.trim()) return;
+    setIsConnectingFyers(true);
+    setFyersMsg(null);
+    try {
+      const res = await fetch('/api/fyers/set-auth-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auth_code: fyersAuthInput.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setFyersMsg({ type: 'success', text: 'Fyers connected successfully! 1-second live streaming activated.' });
+        setFyersAuthInput('');
+        checkFyersStatus();
+        fetchOptionChain(selectedSymbol, selectedExpiry, true);
+        setTimeout(() => setIsFyersModalOpen(false), 1500);
+      } else {
+        setFyersMsg({ type: 'error', text: data.detail || data.response?.message || 'Invalid auth code. Please try logging in again.' });
+      }
+    } catch (err) {
+      setFyersMsg({ type: 'error', text: 'Connection failed. Please check network and try again.' });
+    } finally {
+      setIsConnectingFyers(false);
+    }
+  };
+
   const searchContainerRef = useRef(null);
   const atmRowRef = useRef(null);
   const tableContainerRef = useRef(null);
@@ -188,6 +240,7 @@ export default function OptionChainView({ onSelectStock }) {
   }, []);
 
   const lastFetchedRef = useRef({ symbol: '', expiry: '' });
+  const isFetchingRef = useRef(false);
 
   // 2. Fetch Option Chain data for selected symbol & expiry
   const fetchOptionChain = async (symbolToFetch = selectedSymbol, expiryToFetch = selectedExpiry, force = false, isSilent = false) => {
@@ -197,6 +250,10 @@ export default function OptionChainView({ onSelectStock }) {
     if (!force && lastFetchedRef.current.symbol === symbolToFetch && lastFetchedRef.current.expiry === expiryToFetch) {
       return;
     }
+
+    // In-flight guard: prevent piling up multiple requests when exchange call takes > 1 second
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
 
     const hasDataForCurrentSymbol = chainData && chainData.symbol === symbolToFetch;
 
@@ -214,8 +271,11 @@ export default function OptionChainView({ onSelectStock }) {
       params.append('symbol', symbolToFetch);
       if (expiryToFetch) params.append('expiry', expiryToFetch);
       if (force) params.append('force', 'true');
+      params.append('_t', Date.now().toString());
 
-      const res = await fetch(`/api/option-chain/data?${params.toString()}`);
+      const res = await fetch(`/api/option-chain/data?${params.toString()}`, {
+        cache: 'no-store'
+      });
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }
@@ -235,6 +295,7 @@ export default function OptionChainView({ onSelectStock }) {
         setError('Unable to load option chain data. Retrying with cache...');
       }
     } finally {
+      isFetchingRef.current = false;
       if (!isSilent) {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -734,12 +795,21 @@ export default function OptionChainView({ onSelectStock }) {
               </span>
             )}
 
-            {/* Fyers Live Feed Badge */}
-            {chainData?.feed_source === 'FYERS_API_V3' && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                ⚡ Fyers 1s Real-Time
+            {/* Live Feed Source & 1-Click Broker Connector */}
+            {chainData?.feed_source === 'FYERS_API_V3' ? (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                ⚡ Fyers 1s Stream
               </span>
+            ) : (
+              <button
+                onClick={() => setIsFyersModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-mono text-[11px] font-bold transition-all cursor-pointer shadow-sm hover:scale-102"
+                title="Click to connect Fyers for 1-second sub-second real-time streaming"
+              >
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span>NSE Feed (Connect Fyers for 1s Live)</span>
+              </button>
             )}
 
             {/* Underlying Spot Price (Clickable to open Real-Time Chart) */}
@@ -1119,6 +1189,80 @@ export default function OptionChainView({ onSelectStock }) {
         initialLtp={chartModal.initialLtp}
         isOption={chartModal.isOption}
       />
+
+      {/* 1-Click Fyers API v3 Token Connector Modal */}
+      {isFyersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-6 relative text-slate-100">
+            <button 
+              onClick={() => setIsFyersModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Connect Fyers Live 1s Feed</h3>
+                <p className="text-xs text-slate-400">Daily SEBI Broker Authentication</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-4 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              Indian SEBI regulations mandate that all broker API tokens expire every morning at 06:00 AM IST. 
+              Connect your Fyers account to activate <b>1-second real-time tick streaming</b> and <b>live candlestick charts</b>.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <span className="text-xs font-bold text-indigo-300 block mb-1.5">Step 1: Log in to Fyers</span>
+                <a
+                  href={fyersStatus.auth_url || "https://api-t1.fyers.in/api/v3/generate-authcode?client_id=1RGTQJ79OP-200&redirect_uri=https%3A%2F%2Ftrade.fyers.in%2Fapi-login%2Fredirect-uri%2Findex.html&response_type=code&state=None"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Fyers Official Login Page</span>
+                </a>
+              </div>
+
+              <form onSubmit={handleConnectFyers}>
+                <span className="text-xs font-bold text-indigo-300 block mb-1.5">Step 2: Paste Redirect URL or Auth Code</span>
+                <input
+                  type="text"
+                  placeholder="Paste URL (https://trade.fyers.in/...auth_code=...) or code here"
+                  value={fyersAuthInput}
+                  onChange={(e) => setFyersAuthInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono mb-3"
+                  required
+                />
+
+                {fyersMsg && (
+                  <div className={`p-2.5 rounded-lg text-xs font-medium mb-3 flex items-center gap-2 ${
+                    fyersMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {fyersMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span>{fyersMsg.text}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isConnectingFyers || !fyersAuthInput.trim()}
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                >
+                  {isConnectingFyers ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  <span>{isConnectingFyers ? 'Activating Live Feed...' : 'Activate 1-Second Live Streaming'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
