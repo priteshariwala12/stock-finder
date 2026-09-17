@@ -13,8 +13,6 @@ const THEMES = [
 ];
 
 const VIEW_TITLES = {
-  screener: { title: 'Equity Screener', desc: 'NSE & BSE Technical Scanner & Realtime Analytics' },
-  query_screener: { title: 'Custom Query Screener', desc: 'Screener.in Formula & Technical/Fundamental Scanner' },
   recommendations: { title: 'AI Recommendations', desc: 'Institutional High-Probability Trades' },
   market_picture: { title: 'Market Picture', desc: 'Top Gainers, Losers & Breadth' },
   option_chain: { title: 'NSE & BSE Option Chain', desc: 'Realtime Live & Closing Option Chain with TradingView Strike Charts' },
@@ -96,7 +94,7 @@ export default function TopHeader({
           <span className="text-xs font-semibold hidden md:inline">Menu</span>
         </button>
 
-        {/* Quick Primary Tabs: Option Chain (Home) & Screener */}
+        {/* Quick Primary Tabs */}
         <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800 shrink-0">
           <button
             onClick={() => onSelectView?.('option_chain')}
@@ -105,20 +103,20 @@ export default function TopHeader({
                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
-            title="Go to Option Chain (Homepage)"
+            title="Go to Option Chain"
           >
             <span>⚡ Option Chain</span>
           </button>
           <button
-            onClick={() => onSelectView?.('screener')}
+            onClick={() => onSelectView?.('market_picture')}
             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === 'screener'
+              currentView === 'market_picture'
                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
-            title="Go to Equity Screener"
+            title="Go to Market Picture"
           >
-            <span>📊 Screener</span>
+            <span>📈 Market Picture</span>
           </button>
         </div>
 

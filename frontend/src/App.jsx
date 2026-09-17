@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SidebarNav from './components/SidebarNav';
 import TopHeader from './components/TopHeader';
-import FilterSidebar from './components/FilterSidebar';
-import StockTable from './components/StockTable';
 import StockDetailModal from './components/StockDetailModal';
 import SyncModal from './components/SyncModal';
 import SavePresetModal from './components/SavePresetModal';
@@ -12,15 +10,11 @@ import IVAnalysisView from './components/IVAnalysisView';
 import SectorFlowView from './components/SectorFlowView';
 import MarketHeatmapView from './components/MarketHeatmapView';
 import MarketPictureView from './components/MarketPictureView';
-import QueryScreenerView from './components/QueryScreenerView';
 import LearnView from './components/LearnView';
 import OptionChainView from './components/OptionChainView';
-import { Filter } from 'lucide-react';
 
 export const VALID_VIEWS = [
   'option_chain',
-  'screener',
-  'query_screener',
   'market_picture',
   'iv_analysis',
   'sector_flow',
@@ -178,16 +172,7 @@ export default function App() {
   const [isDesktopFilterSidebarOpen, setIsDesktopFilterSidebarOpen] = useState(false);
   const [highlightFilter, setHighlightFilter] = useState(false);
 
-  // Highlight FILTER button twice when user lands on screener page
-  useEffect(() => {
-    if (currentView === 'screener') {
-      setHighlightFilter(true);
-      const timer = setTimeout(() => {
-        setHighlightFilter(false);
-      }, 2200);
-      return () => clearTimeout(timer);
-    }
-  }, [currentView]);
+
 
   // Load initial market summary, presets, sectors, and user watchlist
   useEffect(() => {
@@ -296,14 +281,7 @@ export default function App() {
     }
   }, [filters, page, pageSize, sortBy, sortOrder, isWatchlistOnly, isFnoOnly, activeSegment, token]);
 
-  useEffect(() => {
-    if (currentView === 'screener') {
-      const timer = setTimeout(() => {
-        runScreen();
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [runScreen, currentView]);
+
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -535,10 +513,6 @@ export default function App() {
           {/* 3. Sector Flow View */}
           {currentView === 'sector_flow' && (
             <SectorFlowView 
-              onSelectSector={(sec) => {
-                handleFilterChange('sectors', [sec]);
-                setCurrentView('screener');
-              }}
               onSelectStock={(sym) => setSelectedStockSymbol(sym)}
             />
           )}
@@ -552,103 +526,10 @@ export default function App() {
           {currentView === 'market_picture' && (
             <MarketPictureView 
               onSelectStock={(sym) => setSelectedStockSymbol(sym)}
-              onSwitchToScreener={() => setCurrentView('screener')}
             />
           )}
 
-          {/* 6. Screener Workspace View */}
-          {currentView === 'screener' && (
-            <>
-              {/* Mobile filter button */}
-              <div className="lg:hidden p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-                <button
-                  onClick={() => setIsMobileFilterSidebarOpen(true)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold transition-all ${
-                    highlightFilter ? 'animate-highlight-twice' : ''
-                  }`}
-                >
-                  <Filter className="w-3.5 h-3.5" />
-                  <span>Filters ({activeFiltersCount})</span>
-                </button>
-                <span className="text-xs text-slate-400">
-                  {activeFiltersCount === 0 ? '0 stocks (Select criteria)' : `${totalStocks} stocks found`}
-                </span>
-              </div>
-
-              <div className="flex-1 flex overflow-hidden">
-                {/* Screening Sidebar */}
-                <FilterSidebar
-                  filters={filters}
-                  onFilterChange={handleFilterChange}
-                  onResetFilters={handleResetFilters}
-                  presets={presets}
-                  activePresetId={activePresetId}
-                  onSelectPreset={handleSelectPreset}
-                  isFnoOnly={isFnoOnly}
-                  onToggleFno={handleToggleFno}
-                  fnoCount={marketSummary?.fno_count}
-                  onOpenSavePreset={() => {
-                    if (!user) {
-                      setIsAuthModalOpen(true);
-                    } else {
-                      setIsSavePresetModalOpen(true);
-                    }
-                  }}
-                  sectors={sectors}
-                  isMobileOpen={isMobileFilterSidebarOpen}
-                  onCloseMobile={() => setIsMobileFilterSidebarOpen(false)}
-                  isOpen={isDesktopFilterSidebarOpen}
-                  onToggle={() => setIsDesktopFilterSidebarOpen(prev => !prev)}
-                />
-
-                {/* Results Stock Table */}
-                <StockTable
-                  stocks={stocks}
-                  totalStocks={totalStocks}
-                  page={page}
-                  pageSize={pageSize}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  onPageSizeChange={(sz) => { setPageSize(sz); setPage(1); }}
-                  sortBy={sortBy}
-                  sortOrder={sortOrder}
-                  onSort={handleSort}
-                  searchTerm={filters.search || ''}
-                  onSearchChange={(val) => handleFilterChange('search', val)}
-                  onSelectStock={(sym) => setSelectedStockSymbol(sym)}
-                  onExportCsv={handleExportCsv}
-                  isLoading={isLoading}
-                  activeFiltersCount={activeFiltersCount}
-                  onResetFilters={handleResetFilters}
-                  watchlist={watchlist}
-                  onToggleWatchlist={handleToggleWatchlist}
-                  isWatchlistOnly={isWatchlistOnly}
-                  onToggleWatchlistFilter={handleToggleWatchlistFilter}
-                  isFnoOnly={isFnoOnly}
-                  onToggleFno={handleToggleFno}
-                  activeSegment={activeSegment}
-                  onSelectSegment={handleSelectSegment}
-                  marketSummary={marketSummary}
-                  isSidebarOpen={isDesktopFilterSidebarOpen}
-                  onToggleSidebar={() => setIsDesktopFilterSidebarOpen(prev => !prev)}
-                  onOpenQueryScreener={() => setCurrentView('query_screener')}
-                  highlightFilter={highlightFilter}
-                />
-              </div>
-            </>
-          )}
-
-          {/* 7. Query Screener View (Screener.in custom formula query) */}
-          {currentView === 'query_screener' && (
-            <QueryScreenerView
-              onSelectStock={(sym) => setSelectedStockSymbol(sym)}
-              watchlist={watchlist}
-              onToggleWatchlist={handleToggleWatchlist}
-              currentTheme={currentTheme}
-            />
-          )}
-
-          {/* 8. Learn Stock Market View (Curated video courses) */}
+          {/* 6. Learn Stock Market View (Curated video courses) */}
           {currentView === 'learn' && (
             <LearnView />
           )}

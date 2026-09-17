@@ -35,21 +35,6 @@ export default function SidebarNav({
       description: 'NSE & BSE Realtime Option Chain & Greeks'
     },
     {
-      id: 'screener',
-      label: 'Equity Screener',
-      icon: Search,
-      badge: null,
-      description: 'Multi-parameter Equity & Technical Scanner'
-    },
-    {
-      id: 'query_screener',
-      label: 'Query Screener',
-      icon: Terminal,
-      badge: 'NEW',
-      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-      description: 'Run Screener.in Formulas & Custom Ratios'
-    },
-    {
       id: 'market_picture',
       label: 'Market Picture',
       icon: TrendingUp,
