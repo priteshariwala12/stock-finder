@@ -94,8 +94,40 @@ export function getTradingViewWebUrl(tvSymbol) {
   return `https://in.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}`;
 }
 
+/**
+ * Convert any symbol into official Fyers symbol for /api/chart/history
+ */
+export function toFyersSymbol(inputSymbol) {
+  if (!inputSymbol) return 'NSE:NIFTY50-INDEX';
+  const raw = String(inputSymbol).trim().toUpperCase();
+  const clean = raw.replace(/^(NSE:|BSE:)/i, '').replace(/-(INDEX|EQ)$/i, '').trim();
+
+  if (clean === 'NIFTY' || clean === 'NIFTY50' || clean === 'NIFTY 50') return 'NSE:NIFTY50-INDEX';
+  if (clean === 'BANKNIFTY' || clean === 'NIFTYBANK' || clean === 'BANK NIFTY' || clean === 'NIFTY BANK') return 'NSE:NIFTYBANK-INDEX';
+  if (clean === 'FINNIFTY' || clean === 'NIFTY FIN SERVICE') return 'NSE:FINNIFTY-INDEX';
+  if (clean === 'MIDCPNIFTY' || clean === 'MIDCAP NIFTY' || clean === 'NIFTY MIDCAP') return 'NSE:MIDCPNIFTY-INDEX';
+  if (clean === 'NIFTYNXT50' || clean === 'NIFTYNEXT50' || clean === 'NIFTY NEXT 50') return 'NSE:NIFTYNEXT50-INDEX';
+  if (clean === 'SENSEX' || clean === 'BSE SENSEX') return 'BSE:SENSEX-INDEX';
+  if (clean === 'BANKEX' || clean === 'BSE BANKEX') return 'BSE:BANKEX-INDEX';
+
+  // Check if it's an option contract (e.g. NSE:NIFTY2692223250CE, NIFTY2692223250CE)
+  if (/\d+(CE|PE)$/i.test(raw)) {
+    return raw.startsWith('NSE:') || raw.startsWith('BSE:') ? raw : `NSE:${raw}`;
+  }
+
+  if (raw.startsWith('NSE:') || raw.startsWith('BSE:')) {
+    if (raw.endsWith('-INDEX') || raw.endsWith('-EQ')) {
+      return raw;
+    }
+    return `${raw}-EQ`;
+  }
+
+  return `NSE:${clean}-EQ`;
+}
+
 export default {
   toTradingViewSymbol,
+  toFyersSymbol,
   formatTvOptionSymbol,
   getTradingViewWebUrl
 };

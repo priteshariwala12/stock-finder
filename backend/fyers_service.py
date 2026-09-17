@@ -4,6 +4,7 @@ import time
 import base64
 import math
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from fyers_apiv3 import fyersModel
@@ -32,25 +33,33 @@ def to_fyers_symbol(symbol: str) -> str:
     # Normalize clean symbol without exchange prefixes or suffixes
     clean = s.replace("NSE:", "").replace("BSE:", "").replace("-INDEX", "").replace("-EQ", "")
     
-    if clean in ("NIFTY", "NIFTY50"):
+    if clean in ("NIFTY", "NIFTY50", "NIFTY 50"):
         return FYERS_INDEX_MAP["NIFTY"]
-    elif clean in ("BANKNIFTY", "NIFTYBANK"):
+    elif clean in ("BANKNIFTY", "NIFTYBANK", "BANK NIFTY", "NIFTY BANK"):
         return FYERS_INDEX_MAP["BANKNIFTY"]
-    elif clean == "FINNIFTY":
+    elif clean in ("FINNIFTY", "NIFTY FIN SERVICE"):
         return FYERS_INDEX_MAP["FINNIFTY"]
-    elif clean == "MIDCPNIFTY":
+    elif clean in ("MIDCPNIFTY", "MIDCAP NIFTY", "NIFTY MIDCAP"):
         return FYERS_INDEX_MAP["MIDCPNIFTY"]
-    elif clean in ("NIFTYNXT50", "NIFTYNEXT50"):
+    elif clean in ("NIFTYNXT50", "NIFTYNEXT50", "NIFTY NEXT 50"):
         return FYERS_INDEX_MAP["NIFTYNXT50"]
-    elif clean == "SENSEX":
+    elif clean in ("SENSEX", "BSE SENSEX"):
         return FYERS_INDEX_MAP["SENSEX"]
-    elif clean == "BANKEX":
+    elif clean in ("BANKEX", "BSE BANKEX"):
         return FYERS_INDEX_MAP["BANKEX"]
     
     if s in FYERS_INDEX_MAP:
         return FYERS_INDEX_MAP[s]
+        
+    # Check if it's an option contract (e.g. NSE:NIFTY2692223250CE, NIFTY2692223250CE)
+    if re.search(r"\d+(CE|PE)$", s):
+        return s if s.startswith("NSE:") or s.startswith("BSE:") else f"NSE:{s}"
+        
     if s.startswith("NSE:") or s.startswith("BSE:"):
-        return s
+        if s.endswith("-INDEX") or s.endswith("-EQ"):
+            return s
+        return f"{s}-EQ"
+        
     return f"NSE:{clean}-EQ"
 
 def get_auth_url() -> str:
