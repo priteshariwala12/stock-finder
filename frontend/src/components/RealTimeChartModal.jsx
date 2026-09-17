@@ -550,7 +550,15 @@ function RealTimeChartModalInner({
             </div>
           )}
 
-          <div ref={chartContainerRef} className="w-full h-full" />
+          <div 
+            ref={chartContainerRef} 
+            onMouseLeave={() => {
+              if (lastCandleRef.current) {
+                setHoveredCandle(lastCandleRef.current);
+              }
+            }}
+            className="w-full h-full" 
+          />
         </div>
 
         {/* Modal Bottom Strip */}

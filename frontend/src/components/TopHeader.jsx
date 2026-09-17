@@ -97,7 +97,7 @@ export default function TopHeader({
         <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800 shrink-0">
           <button
             onClick={() => onSelectView?.('option_chain')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'option_chain'
                 ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -108,7 +108,7 @@ export default function TopHeader({
           </button>
           <button
             onClick={() => onSelectView?.('market_picture')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'market_picture'
                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -116,6 +116,28 @@ export default function TopHeader({
             title="Go to Market Picture"
           >
             <span>📈 Market Picture</span>
+          </button>
+          <button
+            onClick={() => onSelectView?.('results_calendar')}
+            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === 'results_calendar'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Go to Corporate Results Calendar"
+          >
+            <span>📅 Result Calendar</span>
+          </button>
+          <button
+            onClick={() => onSelectView?.('sector_flow')}
+            className={`hidden md:flex px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer items-center gap-1.5 ${
+              currentView === 'sector_flow'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Go to Sector Flow"
+          >
+            <span>🏢 Sector Flow</span>
           </button>
         </div>
 
