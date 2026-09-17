@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { 
   Menu, X, Search, Sparkles, TrendingUp, Activity, 
-  Layers, Grid, Star, Zap, Terminal, GraduationCap, Calendar
+  Layers, Grid, Star, Zap, Terminal, GraduationCap, Calendar, BarChart2
 } from 'lucide-react';
 
 export default function SidebarNav({
@@ -26,6 +26,14 @@ export default function SidebarNav({
 
   if (!isOpen) return null;
   const navItems = [
+    {
+      id: 'chart',
+      label: 'Chart',
+      icon: BarChart2,
+      badge: 'PRO',
+      badgeColor: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+      description: 'Full Facility TradingView Interactive Chart Terminal'
+    },
     {
       id: 'option_chain',
       label: 'Option Chain (Home)',

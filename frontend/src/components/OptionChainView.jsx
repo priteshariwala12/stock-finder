@@ -17,7 +17,7 @@ const POPULAR_INDICES = [
   { symbol: 'BANKEX', name: 'BSE BANKEX', lot: 30 },
 ];
 
-export default function OptionChainView({ onSelectStock }) {
+export default function OptionChainView({ onSelectStock, onOpenChart }) {
   // Navigation & Selection States
   const [selectedSymbol, setSelectedSymbol] = useState('NIFTY');
   const [selectedExpiry, setSelectedExpiry] = useState('');
@@ -427,6 +427,8 @@ export default function OptionChainView({ onSelectStock }) {
       else if (selectedSymbol === 'BANKEX') chartSym = 'BSE:BANKEX-INDEX';
       else if (isIndex) chartSym = `NSE:${selectedSymbol}-INDEX`;
       else chartSym = `NSE:${selectedSymbol}-EQ`;
+    } else if (!chartSym) {
+      chartSym = selectedSymbol === 'SENSEX' ? 'BSE:SENSEX-INDEX' : `NSE:${selectedSymbol}-INDEX`;
     }
 
     const title = sideData?.contract_title || (
@@ -434,6 +436,19 @@ export default function OptionChainView({ onSelectStock }) {
         ? `${selectedSymbol} ₹${strike?.toLocaleString('en-IN')} ${optType}`
         : `${chainData?.name || selectedSymbol} Spot`
     );
+
+    if (onOpenChart) {
+      onOpenChart({
+        symbol: chartSym,
+        displayTitle: title,
+        initialLtp: sideData?.ltp || chainData?.underlying_price || null,
+        isOption,
+        expiry: chainData?.selected_expiry || selectedExpiry,
+        strike,
+        optType
+      });
+      return;
+    }
 
     setChartModal({
       isOpen: true,
@@ -692,6 +707,30 @@ export default function OptionChainView({ onSelectStock }) {
               <Target className="w-3.5 h-3.5 text-indigo-400" />
               <span>ATM {chainData?.atm_strike ? `(₹${chainData.atm_strike.toLocaleString('en-IN')})` : ''}</span>
             </button>
+
+            {/* Open Full Facility Chart Segment */}
+            <button
+              onClick={() => {
+                if (onOpenChart) onOpenChart(selectedSymbol, `${selectedSymbol} Spot`, chainData?.underlying_price);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+              title="Open Full Facility Chart Segment"
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>Chart</span>
+            </button>
+
+            {/* TV.com Official Button */}
+            <a
+              href={`https://in.tradingview.com/chart/?symbol=${encodeURIComponent(selectedSymbol === 'SENSEX' ? 'BSE:SENSEX' : `NSE:${selectedSymbol}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+              title="Open on TradingView.com"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>TV.com</span>
+            </a>
 
             {/* Refresh button */}
             <button

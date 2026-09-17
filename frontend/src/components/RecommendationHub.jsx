@@ -215,6 +215,18 @@ export default function RecommendationHub({ onSelectStock }) {
               <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isLoading ? 'animate-spin' : ''}`} />
               <span>Refresh Calls</span>
             </button>
+
+            {/* TV.com Official Button */}
+            <a
+              href="https://in.tradingview.com/chart/?symbol=NSE%3ANIFTY"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold transition-all shadow-md shadow-blue-900/40 cursor-pointer"
+              title="Open on TradingView.com"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>TV.com</span>
+            </a>
           </div>
         </div>
 

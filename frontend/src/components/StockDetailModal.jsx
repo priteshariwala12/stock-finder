@@ -6,7 +6,7 @@ import {
   Flame, Gauge, PieChart, Layers, Rocket, Sparkles, Cpu
 } from 'lucide-react';
 
-export default function StockDetailModal({ symbol, onClose }) {
+export default function StockDetailModal({ symbol, onClose, onOpenChart }) {
   const [stock, setStock] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -123,17 +123,29 @@ export default function StockDetailModal({ symbol, onClose }) {
                 </div>
               </div>
             )}
+            {stock && onOpenChart && (
+              <button
+                onClick={() => {
+                  onClose?.();
+                  onOpenChart(stock.symbol, stock.name, stock.current_price);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+                title="Open in Full Facility Chart Segment"
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                <span>Chart Segment</span>
+              </button>
+            )}
             {stock && (
               <a
                 href={`https://in.tradingview.com/chart/?symbol=NSE:${stock.symbol}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition-all"
-                title="Open 1-Click Interactive Chart on TradingView"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2962FF] hover:bg-[#1E53E5] text-white font-bold text-xs shadow-md shadow-blue-900/40 transition-all cursor-pointer"
+                title="Open on TradingView.com"
               >
-                <BarChart2 className="w-3.5 h-3.5" />
-                <span>TradingView</span>
-                <ExternalLink className="w-3 h-3 opacity-80" />
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>TV.com</span>
               </a>
             )}
             <button

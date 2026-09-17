@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Grid, RefreshCw, Eye, ArrowUpRight, ArrowDownRight, 
-  Layers, Filter, Sparkles, Shield, Zap
+  Layers, Filter, Sparkles, Shield, Zap, ExternalLink, BarChart2
 } from 'lucide-react';
 
 export default function MarketHeatmapView({ onSelectStock }) {
@@ -88,6 +88,18 @@ export default function MarketHeatmapView({ onSelectStock }) {
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-400' : ''}`} />
             <span>Refresh Heatmap</span>
           </button>
+
+          {/* TV.com Official Button */}
+          <a
+            href="https://in.tradingview.com/chart/?symbol=NSE%3ANIFTY"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold transition-all shadow-md shadow-blue-900/40 cursor-pointer"
+            title="Open on TradingView.com"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>TV.com</span>
+          </a>
         </div>
       </div>
 
@@ -226,6 +238,25 @@ export default function MarketHeatmapView({ onSelectStock }) {
               <span className="text-slate-400 block text-[10px]">Volume:</span>
               <span className="font-mono text-slate-200">{hoveredStock.volume_multiple}x avg</span>
             </div>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-2">
+            <button
+              onClick={() => onSelectStock && onSelectStock(hoveredStock.symbol)}
+              className="flex-1 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <BarChart2 className="w-3 h-3" />
+              <span>Chart</span>
+            </button>
+            <a
+              href={`https://in.tradingview.com/chart/?symbol=NSE:${hoveredStock.symbol}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded bg-[#2962FF] hover:bg-[#1E53E5] text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>TV.com</span>
+            </a>
           </div>
         </div>
       )}

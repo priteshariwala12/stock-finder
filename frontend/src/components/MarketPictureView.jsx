@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, TrendingDown, Activity, Zap, RefreshCw, 
-  ArrowUpRight, ArrowDownRight, Flame, BarChart2, Eye, Filter, CheckCircle2
+  ArrowUpRight, ArrowDownRight, Flame, BarChart2, Eye, Filter, CheckCircle2, ExternalLink
 } from 'lucide-react';
 
 export default function MarketPictureView({ onSelectStock, onSwitchToScreener }) {
@@ -115,6 +115,18 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
             <span>Refresh</span>
           </button>
+
+          {/* TV.com Official Button */}
+          <a
+            href={exchange === 'BSE' ? "https://in.tradingview.com/chart/?symbol=BSE%3ASENSEX" : "https://in.tradingview.com/chart/?symbol=NSE%3ANIFTY"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold transition-all shadow-md shadow-blue-900/40 cursor-pointer"
+            title="Open on TradingView.com"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>TV.com</span>
+          </a>
         </div>
       </div>
 

@@ -166,6 +166,18 @@ export default function ResultCalendarView({ onSelectStock }) {
             <RefreshCw className={`w-3.5 h-3.5 ${isUpcomingLoading || isDeclaredLoading || isHistoryLoading ? 'animate-spin text-indigo-400' : ''}`} />
             <span>Refresh</span>
           </button>
+
+          {/* TV.com Official Button */}
+          <a
+            href="https://in.tradingview.com/chart/?symbol=NSE%3ANIFTY"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold transition-all shadow-md shadow-blue-900/40 cursor-pointer"
+            title="Open on TradingView.com"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>TV.com</span>
+          </a>
         </div>
       </div>
 
@@ -258,7 +270,10 @@ export default function ResultCalendarView({ onSelectStock }) {
                         <td className="py-2.5 px-4 font-bold text-indigo-300 whitespace-nowrap">
                           {item.date}
                         </td>
-                        <td className="py-2.5 px-4 font-bold text-white flex items-center gap-1.5">
+                        <td 
+                          onClick={() => onSelectStock && onSelectStock(item.symbol)}
+                          className="py-2.5 px-4 font-bold text-white flex items-center gap-1.5 cursor-pointer hover:text-indigo-300"
+                        >
                           <span>{item.symbol}</span>
                           {item.is_fno === 1 && (
                             <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -352,7 +367,10 @@ export default function ResultCalendarView({ onSelectStock }) {
                       <td className="py-2.5 px-4 font-bold text-slate-300 whitespace-nowrap">
                         {item.date}
                       </td>
-                      <td className="py-2.5 px-4 font-bold text-white flex items-center gap-1.5">
+                      <td 
+                        onClick={() => onSelectStock && onSelectStock(item.symbol)}
+                        className="py-2.5 px-4 font-bold text-white flex items-center gap-1.5 cursor-pointer hover:text-indigo-300"
+                      >
                         <span>{item.symbol}</span>
                         {item.is_fno === 1 && (
                           <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">

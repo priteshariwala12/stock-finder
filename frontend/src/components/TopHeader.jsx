@@ -13,6 +13,7 @@ const THEMES = [
 ];
 
 const VIEW_TITLES = {
+  chart: { title: 'TradingView Chart', desc: 'Full facility interactive technical charts with indicators, drawing tools & zero-delay feeds' },
   recommendations: { title: 'AI Recommendations', desc: 'Institutional High-Probability Trades' },
   market_picture: { title: 'Market Picture', desc: 'Top Gainers, Losers & Breadth' },
   option_chain: { title: 'NSE & BSE Option Chain', desc: 'Realtime Live & Closing Option Chain with TradingView Strike Charts' },
@@ -26,6 +27,7 @@ const VIEW_TITLES = {
 export default function TopHeader({
   currentView,
   onSelectView,
+  onOpenChart,
   onToggleNav,
   onOpenMobileMenu,
   marketSummary,
@@ -96,6 +98,17 @@ export default function TopHeader({
         {/* Quick Primary Tabs */}
         <div className="flex items-center gap-1 bg-slate-950/70 p-0.5 rounded-xl border border-slate-800 shrink-0">
           <button
+            onClick={() => onSelectView?.('chart')}
+            className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === 'chart'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/40'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Go to Full Facility Chart"
+          >
+            <span>📊 Chart</span>
+          </button>
+          <button
             onClick={() => onSelectView?.('option_chain')}
             className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'option_chain'
@@ -155,7 +168,12 @@ export default function TopHeader({
           return (
             <div
               key={i}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-950/60 border border-slate-800/80 text-xs shrink-0"
+              onClick={() => {
+                if (onOpenChart) onOpenChart(idx.name, idx.name);
+                else onSelectView?.('chart');
+              }}
+              className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-slate-700 text-xs shrink-0 cursor-pointer transition-colors"
+              title={`Open ${idx.name} in Chart`}
             >
               <span className="font-semibold text-slate-300 text-[11px]">
                 {idx.name}

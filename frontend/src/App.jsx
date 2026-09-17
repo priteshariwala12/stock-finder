@@ -12,8 +12,10 @@ import MarketHeatmapView from './components/MarketHeatmapView';
 import MarketPictureView from './components/MarketPictureView';
 import LearnView from './components/LearnView';
 import OptionChainView from './components/OptionChainView';
+import ChartView from './components/ChartView';
 
 export const VALID_VIEWS = [
+  'chart',
   'option_chain',
   'market_picture',
   'results_calendar',
@@ -171,6 +173,38 @@ export default function App() {
   const [isMobileFilterSidebarOpen, setIsMobileFilterSidebarOpen] = useState(false);
   const [isDesktopFilterSidebarOpen, setIsDesktopFilterSidebarOpen] = useState(false);
   const [highlightFilter, setHighlightFilter] = useState(false);
+
+  // Active Chart Segment Configuration
+  const [activeChartConfig, setActiveChartConfig] = useState({
+    symbol: 'NSE:NIFTY',
+    displayTitle: 'NIFTY 50',
+    initialLtp: null,
+    isOption: false,
+    expiry: null,
+    strike: null,
+    optType: 'CE'
+  });
+
+  // Global handler: open any stock or strike in the dedicated 'Chart' segment
+  const handleOpenChart = useCallback((symbolOrConfig, title = null, ltp = null, isOption = false, expiry = null, strike = null, optType = 'CE') => {
+    if (typeof symbolOrConfig === 'object' && symbolOrConfig !== null) {
+      setActiveChartConfig(prev => ({
+        ...prev,
+        ...symbolOrConfig
+      }));
+    } else {
+      setActiveChartConfig({
+        symbol: symbolOrConfig,
+        displayTitle: title || symbolOrConfig,
+        initialLtp: ltp,
+        isOption,
+        expiry,
+        strike,
+        optType
+      });
+    }
+    setCurrentView('chart');
+  }, []);
 
 
 
@@ -470,6 +504,7 @@ export default function App() {
       <TopHeader
         currentView={currentView}
         onSelectView={handleNavSelect}
+        onOpenChart={handleOpenChart}
         onToggleNav={() => setIsNavOpen(prev => !prev)}
         marketSummary={marketSummary}
         onOpenSync={() => setIsSyncModalOpen(true)}
@@ -495,37 +530,59 @@ export default function App() {
 
         {/* View Workspace */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950">
+          {/* 0. Full Facility TradingView Chart Segment */}
+          {currentView === 'chart' && (
+            <ChartView 
+              {...activeChartConfig} 
+              onOpenChart={handleOpenChart} 
+            />
+          )}
+
           {/* 1. Recommendations Hub View */}
           {currentView === 'recommendations' && (
-            <RecommendationHub onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
+            <RecommendationHub 
+              onSelectStock={handleOpenChart} 
+              onOpenChart={handleOpenChart} 
+            />
           )}
 
           {/* Option Chain View */}
           {currentView === 'option_chain' && (
-            <OptionChainView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
+            <OptionChainView 
+              onSelectStock={handleOpenChart} 
+              onOpenChart={handleOpenChart} 
+            />
           )}
 
           {/* 2. Corporate Results Calendar View */}
           {currentView === 'results_calendar' && (
-            <ResultCalendarView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
+            <ResultCalendarView 
+              onSelectStock={handleOpenChart} 
+              onOpenChart={handleOpenChart} 
+            />
           )}
 
           {/* 3. Sector Flow View */}
           {currentView === 'sector_flow' && (
             <SectorFlowView 
-              onSelectStock={(sym) => setSelectedStockSymbol(sym)}
+              onSelectStock={handleOpenChart}
+              onOpenChart={handleOpenChart}
             />
           )}
 
           {/* 4. Market Heat Map View */}
           {currentView === 'heatmap' && (
-            <MarketHeatmapView onSelectStock={(sym) => setSelectedStockSymbol(sym)} />
+            <MarketHeatmapView 
+              onSelectStock={handleOpenChart} 
+              onOpenChart={handleOpenChart} 
+            />
           )}
 
           {/* 5. Market Picture View (Gainers, Losers, Volume, 52W Highs) */}
           {currentView === 'market_picture' && (
             <MarketPictureView 
-              onSelectStock={(sym) => setSelectedStockSymbol(sym)}
+              onSelectStock={handleOpenChart}
+              onOpenChart={handleOpenChart}
             />
           )}
 
@@ -541,6 +598,7 @@ export default function App() {
         <StockDetailModal
           symbol={selectedStockSymbol}
           onClose={() => setSelectedStockSymbol(null)}
+          onOpenChart={handleOpenChart}
         />
       )}
 
