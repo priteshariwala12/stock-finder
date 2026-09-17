@@ -39,6 +39,7 @@ export default function OptionChainView({ onSelectStock }) {
   const [chainData, setChainData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(10); // 10s default for exchange safety; 1s when Fyers connected
   const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(() => {
@@ -260,18 +261,17 @@ export default function OptionChainView({ onSelectStock }) {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
-    const hasDataForCurrentSymbol = chainData && chainData.symbol === symbolToFetch;
-
-    if (!isSilent) {
-      if (force || hasDataForCurrentSymbol) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-    }
-
     try {
+      const hasDataForCurrentSymbol = chainData && chainData.symbol === symbolToFetch;
+
+      if (!isSilent) {
+        if (force || hasDataForCurrentSymbol) {
+          setIsRefreshing(true);
+        } else {
+          setIsLoading(true);
+        }
+        setError(null);
+      }
       const params = new URLSearchParams();
       params.append('symbol', symbolToFetch);
       if (expiryToFetch) params.append('expiry', expiryToFetch);
