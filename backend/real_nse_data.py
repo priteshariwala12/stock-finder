@@ -48,13 +48,18 @@ def calculate_bs_iv(price, S, K, T, r=0.0675, is_call=True):
     return round(mid * 100, 2)
 
 class NSESessionManager:
-    """Maintains valid session cookies with NSE India using Chrome TLS fingerprinting."""
+    """Maintains valid session cookies with NSE India using Chrome TLS fingerprinting with fast timeouts."""
     def __init__(self):
         self.session = None
         self.last_warmed = 0
+        self.last_failed = 0
         self._init_session()
 
     def _init_session(self):
+        # Circuit breaker: don't hammer NSE if warm-up failed within the last 60 seconds
+        if time.time() - self.last_failed < 60:
+            return
+
         self.session = requests.Session(impersonate="chrome124")
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -63,11 +68,17 @@ class NSESessionManager:
             "Accept-Encoding": "gzip, deflate, br",
         }
         try:
-            r = self.session.get("https://www.nseindia.com/option-chain", headers=headers, timeout=15)
-            self.last_warmed = time.time()
-            logger.info("NSE session initialized successfully, status=%s", r.status_code)
+            r = self.session.get("https://www.nseindia.com/option-chain", headers=headers, timeout=3.5)
+            if r.status_code == 200:
+                self.last_warmed = time.time()
+                self.last_failed = 0
+                logger.info("NSE session initialized successfully, status=%s", r.status_code)
+            else:
+                self.last_failed = time.time()
+                logger.warning("NSE session warm-up returned non-200 status: %s", r.status_code)
         except Exception as e:
-            logger.error("Failed to warm up NSE session: %s", e)
+            self.last_failed = time.time()
+            logger.warning("NSE session warm-up failed or timed out: %s (circuit breaker active for 60s)", e)
 
     def get_api_headers(self):
         return {
@@ -80,26 +91,34 @@ class NSESessionManager:
         }
 
     def fetch_contract_info(self, symbol: str):
-        if time.time() - self.last_warmed > 600:
+        if time.time() - self.last_warmed > 600 and time.time() - self.last_failed > 60:
             self._init_session()
         url = f"https://www.nseindia.com/api/option-chain-contract-info?symbol={symbol.strip().upper()}"
         try:
-            r = self.session.get(url, headers=self.get_api_headers(), timeout=12)
+            if not self.session:
+                self.session = requests.Session(impersonate="chrome124")
+            r = self.session.get(url, headers=self.get_api_headers(), timeout=3.5)
             if r.status_code == 200:
                 return r.json()
+            elif r.status_code in (401, 403, 429):
+                self.last_failed = time.time()
         except Exception as e:
-            logger.error("Error fetching contract info for %s: %s", symbol, e)
+            logger.warning("Error fetching contract info for %s: %s", symbol, e)
         return None
 
     def fetch_option_chain_v3(self, symbol: str, expiry: str, is_index: bool = False):
         chain_type = "Indices" if is_index else "Equity"
         url = f"https://www.nseindia.com/api/option-chain-v3?type={chain_type}&symbol={symbol.strip().upper()}&expiry={expiry}"
         try:
-            r = self.session.get(url, headers=self.get_api_headers(), timeout=15)
+            if not self.session:
+                self.session = requests.Session(impersonate="chrome124")
+            r = self.session.get(url, headers=self.get_api_headers(), timeout=3.5)
             if r.status_code == 200:
                 return r.json()
+            elif r.status_code in (401, 403, 429):
+                self.last_failed = time.time()
         except Exception as e:
-            logger.error("Error fetching option chain for %s (%s): %s", symbol, expiry, e)
+            logger.warning("Error fetching option chain for %s (%s): %s", symbol, expiry, e)
         return None
 
 nse_manager = NSESessionManager()

@@ -1,5 +1,7 @@
 import json
 import os
+import time
+import base64
 import math
 import logging
 from typing import Dict, Any, List, Optional
@@ -83,12 +85,61 @@ def set_auth_code(auth_code: str) -> Dict[str, Any]:
         logger.error(f"Fyers token generation failed: {response}")
         return {"status": "error", "response": response}
 
+def is_jwt_token_valid(token: str) -> bool:
+    """Checks if JWT token is non-empty and expiration timestamp is in the future."""
+    if not token or not isinstance(token, str) or "." not in token:
+        return False
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return False
+        payload_part = parts[1]
+        payload_part += "=" * (-len(payload_part) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_part))
+        exp = payload.get("exp")
+        if exp and isinstance(exp, (int, float)):
+            return time.time() < (exp - 15)
+    except Exception as e:
+        logger.debug("Error decoding JWT payload: %s", e)
+    return False
+
+def get_token_details() -> Dict[str, Any]:
+    """Inspects the local token file and returns its validity, expiry time, etc."""
+    if not os.path.exists(TOKEN_FILE):
+        return {"exists": False, "valid": False, "reason": "No token file found"}
+    try:
+        with open(TOKEN_FILE, "r") as f:
+            data = json.load(f)
+            token = data.get("access_token")
+            if not token:
+                return {"exists": False, "valid": False, "reason": "Empty token in file"}
+            parts = token.split(".")
+            if len(parts) >= 2:
+                payload_part = parts[1] + "=" * (-len(parts[1]) % 4)
+                payload = json.loads(base64.urlsafe_b64decode(payload_part))
+                exp = payload.get("exp", 0)
+                is_valid = time.time() < exp
+                exp_dt = datetime.fromtimestamp(exp, tz=timezone.utc).astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%d %b %Y, %I:%M %p IST") if exp else "Unknown"
+                return {
+                    "exists": True,
+                    "valid": is_valid,
+                    "expires_at": exp_dt,
+                    "reason": "Token is active" if is_valid else "Token expired (SEBI requires daily renewal at 06:00 AM IST)"
+                }
+    except Exception as e:
+        return {"exists": True, "valid": False, "reason": str(e)}
+    return {"exists": False, "valid": False, "reason": "Unknown error"}
+
 def get_access_token() -> Optional[str]:
     if os.path.exists(TOKEN_FILE):
         try:
             with open(TOKEN_FILE, "r") as f:
                 data = json.load(f)
-                return data.get("access_token")
+                token = data.get("access_token")
+                if token and is_jwt_token_valid(token):
+                    return token
+                elif token:
+                    logger.debug("Fyers access token in cache is expired.")
         except Exception as e:
             logger.error(f"Error reading token file: {e}")
     return None

@@ -40,7 +40,7 @@ export default function OptionChainView({ onSelectStock }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(1); // 1-second default real-time refresh
+  const [refreshInterval, setRefreshInterval] = useState(10); // 10s default for exchange safety; 1s when Fyers connected
   const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(() => {
     try {
       const saved = localStorage.getItem('stock_finder_paper_terminal_open');
@@ -120,6 +120,11 @@ export default function OptionChainView({ onSelectStock }) {
       if (res.ok) {
         const data = await res.json();
         setFyersStatus(data);
+        if (data.authenticated) {
+          setRefreshInterval(prev => (prev >= 10 ? 1 : prev));
+        } else {
+          setRefreshInterval(prev => (prev < 10 ? 10 : prev));
+        }
       }
     } catch (e) {
       console.error('Failed to check Fyers status:', e);
@@ -273,9 +278,15 @@ export default function OptionChainView({ onSelectStock }) {
       if (force) params.append('force', 'true');
       params.append('_t', Date.now().toString());
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const res = await fetch(`/api/option-chain/data?${params.toString()}`, {
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }
@@ -292,14 +303,27 @@ export default function OptionChainView({ onSelectStock }) {
     } catch (err) {
       console.error('Option chain fetch error:', err);
       if (!isSilent) {
-        setError('Unable to load option chain data. Retrying with cache...');
+        setError('Exchange feed busy. Loading cached strikes snapshot...');
+      }
+      // If we don't have data rendered yet, try immediately fetching cache without force
+      if (!chainData) {
+        try {
+          const fallbackRes = await fetch(`/api/option-chain/data?symbol=${encodeURIComponent(symbolToFetch)}`);
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            setChainData(fallbackData);
+            if (!expiryToFetch && fallbackData.selected_expiry) {
+              setSelectedExpiry(fallbackData.selected_expiry);
+            }
+          }
+        } catch (fbErr) {
+          console.error('Cached strikes fallback error:', fbErr);
+        }
       }
     } finally {
       isFetchingRef.current = false;
-      if (!isSilent) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -704,7 +728,7 @@ export default function OptionChainView({ onSelectStock }) {
 
                 {autoRefresh && (
                   <div className="flex items-center gap-0.5 pl-1 border-l border-slate-800">
-                    {[1, 3, 5].map(sec => (
+                    {(fyersStatus.authenticated ? [1, 2, 5] : [10, 15, 30]).map(sec => (
                       <button
                         key={sec}
                         onClick={() => setRefreshInterval(sec)}
@@ -713,11 +737,24 @@ export default function OptionChainView({ onSelectStock }) {
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                         }`}
-                        title={`Refresh every ${sec} second(s)`}
+                        title={
+                          fyersStatus.authenticated
+                            ? `Stream live tick data every ${sec} second(s) via Fyers broker API`
+                            : `Refresh every ${sec}s (exchange-safe rate limit). Connect Fyers for 1s live streaming.`
+                        }
                       >
                         {sec}s
                       </button>
                     ))}
+                    {!fyersStatus.authenticated && (
+                      <button
+                        onClick={() => setIsFyersModalOpen(true)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer ml-0.5"
+                        title="Click to connect free Fyers broker API for 1-second real-time tick streaming"
+                      >
+                        ⚡ 1s?
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -799,8 +836,17 @@ export default function OptionChainView({ onSelectStock }) {
             {chainData?.feed_source === 'FYERS_API_V3' ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[11px] font-bold shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                ⚡ Fyers 1s Stream
+                ⚡ Fyers 1s Stream Active
               </span>
+            ) : chainData?.feed_source === 'HYBRID_CACHE_LIVE_SPOT' ? (
+              <button
+                onClick={() => setIsFyersModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 text-indigo-300 font-mono text-[11px] font-bold transition-all cursor-pointer shadow-sm hover:scale-102"
+                title="Live spot price with cached closing strikes. Connect Fyers for 1s real-time tick streaming"
+              >
+                <Zap className="w-3 h-3 text-indigo-400 animate-pulse" />
+                <span>Live Spot Feed • Connect Fyers for 1s</span>
+              </button>
             ) : (
               <button
                 onClick={() => setIsFyersModalOpen(true)}
@@ -894,11 +940,17 @@ export default function OptionChainView({ onSelectStock }) {
           >
             {/* Initial full loading overlay - only shown when NO data is rendered yet */}
             {isLoading && !chainData && (
-              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center min-h-[360px] gap-3">
+              <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center min-h-[360px] gap-4">
                 <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 text-indigo-300 shadow-2xl">
                   <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-xs font-semibold">Streaming authentic option chain from NSE...</span>
                 </div>
+                <button
+                  onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, false)}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-all cursor-pointer shadow-lg"
+                >
+                  Load Cached Strikes Snapshot
+                </button>
               </div>
             )}
 
@@ -1136,6 +1188,30 @@ export default function OptionChainView({ onSelectStock }) {
                     </tr>
                   );
                 })}
+                {!isLoading && visibleStrikes.length === 0 && (
+                  <tr>
+                    <td colSpan={13} className="py-16 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <AlertCircle className="w-6 h-6 text-amber-400" />
+                        <span className="text-xs font-semibold">No strikes currently loaded for {selectedSymbol}.</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            onClick={() => fetchOptionChain(selectedSymbol, selectedExpiry, false)}
+                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
+                          >
+                            Load Cached Strikes Snapshot
+                          </button>
+                          <button
+                            onClick={() => setIsFyersModalOpen(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold cursor-pointer transition-all shadow-md"
+                          >
+                            Connect Fyers for Live Feed
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

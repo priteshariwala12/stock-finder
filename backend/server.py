@@ -1164,17 +1164,30 @@ def api_health():
 def api_fyers_status():
     """Check if Fyers token is currently valid or expired"""
     try:
-        from fyers_service import get_fyers_client, get_auth_url
+        from fyers_service import get_fyers_client, get_auth_url, get_token_details
+        token_info = get_token_details()
+        if not token_info.get("valid"):
+            return {
+                "authenticated": False,
+                "message": token_info.get("reason", "No valid token"),
+                "expires_at": token_info.get("expires_at"),
+                "auth_url": get_auth_url()
+            }
         f = get_fyers_client()
         if not f:
             return {"authenticated": False, "message": "No token found", "auth_url": get_auth_url()}
         prof = f.get_profile()
         if prof and prof.get("s") == "ok":
-            return {"authenticated": True, "name": prof.get("data", {}).get("name", "User")}
+            return {
+                "authenticated": True, 
+                "name": prof.get("data", {}).get("name", "User"),
+                "expires_at": token_info.get("expires_at")
+            }
         else:
             return {
                 "authenticated": False,
                 "message": prof.get("message", "Token expired"),
+                "expires_at": token_info.get("expires_at"),
                 "auth_url": get_auth_url()
             }
     except Exception as e:
