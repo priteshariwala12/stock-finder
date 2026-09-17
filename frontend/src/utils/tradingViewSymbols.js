@@ -33,22 +33,61 @@ const MONTH_MAP = {
   JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
 };
 
+const FYERS_MONTH_CODE_MAP = {
+  '1': '01', '2': '02', '3': '03', '4': '04', '5': '05', '6': '06',
+  '7': '07', '8': '08', '9': '09', 'O': '10', 'N': '11', 'D': '12'
+};
+
 /**
  * Format strike option into TradingView Indian Option Symbol format
- * e.g., NSE:NIFTY240926C25000 or fallback NSE:NIFTY25000CE
+ * e.g., NSE:NIFTY260922C23100
  */
 export function formatTvOptionSymbol(sym, expiry, strike, optType = 'CE') {
-  const cleanSym = (sym || 'NIFTY').replace(/^(NSE:|BSE:)/i, '').replace(/-(INDEX|EQ)$/i, '').trim();
+  const raw = String(sym || 'NIFTY').trim().toUpperCase();
+
+  // 1. If sym is already a valid TradingView option symbol (e.g. NSE:NIFTY260922C23100)
+  if (/^(NSE|BSE):[A-Z]+\d{6}[CP]\d+$/i.test(raw)) {
+    return raw;
+  }
+
+  // 2. If sym is a Fyers option contract (e.g. NSE:NIFTY2692223100CE or NIFTY2692223100CE)
+  const mFyers = raw.match(/^(?:(NSE|BSE):)?([A-Z]+)(\d{2})([1-9OND])(\d{2})(\d+)(CE|PE)$/i);
+  if (mFyers) {
+    const [, ex = 'NSE', root, yy, mCode, dd, strk, opt] = mFyers;
+    const mm = FYERS_MONTH_CODE_MAP[mCode.toUpperCase()] || '09';
+    const optCode = opt.toUpperCase() === 'CE' ? 'C' : 'P';
+    return `${ex.toUpperCase()}:${root.toUpperCase()}${yy}${mm}${dd}${optCode}${strk}`;
+  }
+
+  // 3. Fallback: build from root, expiry, strike, and optType
+  let cleanSym = raw.replace(/^(NSE:|BSE:)/i, '').replace(/-(INDEX|EQ)$/i, '').trim();
+  if (cleanSym === 'NIFTY 50' || cleanSym === 'NIFTY50') cleanSym = 'NIFTY';
+  if (cleanSym === 'BANK NIFTY' || cleanSym === 'NIFTYBANK') cleanSym = 'BANKNIFTY';
+  if (cleanSym === 'NIFTY FIN SERVICE') cleanSym = 'FINNIFTY';
+  if (cleanSym === 'MIDCAP NIFTY' || cleanSym === 'NIFTY MIDCAP') cleanSym = 'MIDCPNIFTY';
+  if (cleanSym === 'NIFTY NEXT 50' || cleanSym === 'NIFTYNEXT50') cleanSym = 'NIFTYNEXT50';
+  if (cleanSym === 'BSE SENSEX') cleanSym = 'SENSEX';
+  if (cleanSym === 'BSE BANKEX') cleanSym = 'BANKEX';
+
   const prefix = cleanSym === 'SENSEX' || cleanSym === 'BANKEX' ? 'BSE' : 'NSE';
-  const optCode = optType.toUpperCase().startsWith('C') ? 'C' : 'P';
+  const optCode = String(optType || 'CE').toUpperCase().startsWith('C') ? 'C' : 'P';
   const roundedStrike = Math.round(Number(strike) || 0);
 
   if (expiry && typeof expiry === 'string' && expiry.includes('-')) {
     const parts = expiry.split('-');
     if (parts.length === 3) {
-      const day = parts[0].padStart(2, '0');
-      const m = MONTH_MAP[parts[1].toUpperCase()] || '09';
-      const y = parts[2].slice(-2);
+      let day, m, y;
+      if (parts[0].length === 4) {
+        // Format: YYYY-MM-DD
+        y = parts[0].slice(-2);
+        m = parts[1].padStart(2, '0');
+        day = parts[2].padStart(2, '0');
+      } else {
+        // Format: DD-MMM-YYYY (e.g. 22-Sep-2026)
+        day = parts[0].padStart(2, '0');
+        m = MONTH_MAP[parts[1].toUpperCase()] || parts[1].padStart(2, '0');
+        y = parts[2].slice(-2);
+      }
       return `${prefix}:${cleanSym}${y}${m}${day}${optCode}${roundedStrike}`;
     }
   }
@@ -62,27 +101,40 @@ export function formatTvOptionSymbol(sym, expiry, strike, optType = 'CE') {
 export function toTradingViewSymbol(inputSymbol, expiry = null, strike = null, optType = 'CE') {
   if (!inputSymbol) return 'NSE:NIFTY';
 
-  let raw = String(inputSymbol).trim();
+  let raw = String(inputSymbol).trim().toUpperCase();
 
-  // If already full option symbol like NSE:NIFTY...
+  // 1. If already in official TradingView option format: NSE:NIFTY260922C23100
+  if (/^(NSE|BSE):[A-Z]+\d{6}[CP]\d+$/i.test(raw)) {
+    return raw;
+  }
+
+  // 2. If it is a Fyers option contract: NSE:NIFTY2692223100CE or NIFTY2692223100CE
+  const mFyers = raw.match(/^(?:(NSE|BSE):)?([A-Z]+)(\d{2})([1-9OND])(\d{2})(\d+)(CE|PE)$/i);
+  if (mFyers) {
+    const [, ex = 'NSE', root, yy, mCode, dd, strk, opt] = mFyers;
+    const mm = FYERS_MONTH_CODE_MAP[mCode.toUpperCase()] || '09';
+    const optCode = opt.toUpperCase() === 'CE' ? 'C' : 'P';
+    return `${ex.toUpperCase()}:${root.toUpperCase()}${yy}${mm}${dd}${optCode}${strk}`;
+  }
+
+  // 3. If explicit option contract with separate strike
   if (strike && optType) {
     return formatTvOptionSymbol(raw, expiry, strike, optType);
   }
 
-  // Check known indices
-  const upper = raw.toUpperCase();
-  if (INDEX_TV_MAP[upper]) {
-    return INDEX_TV_MAP[upper];
+  // 4. Check known benchmark indices
+  if (INDEX_TV_MAP[raw]) {
+    return INDEX_TV_MAP[raw];
   }
 
-  // If already starts with NSE: or BSE:
+  // 5. If starts with exchange prefix
   if (raw.startsWith('NSE:') || raw.startsWith('BSE:')) {
     const cleaned = raw.replace(/-(INDEX|EQ)$/i, '');
     return cleaned;
   }
 
-  // Standard Indian Equity default to NSE
-  const cleanSym = raw.replace(/-(INDEX|EQ)$/i, '').replace(/[^A-Za-z0-9&_-]/g, '').toUpperCase();
+  // 6. Standard Indian Equity defaults to NSE
+  const cleanSym = raw.replace(/-(INDEX|EQ)$/i, '').replace(/[^A-Z0-9&_-]/g, '');
   return `NSE:${cleanSym}`;
 }
 

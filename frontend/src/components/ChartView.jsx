@@ -80,6 +80,10 @@ export default function ChartView({
 }) {
   const [activeSymbol, setActiveSymbol] = useState(symbol || 'NSE:NIFTY');
   const [activeTitle, setActiveTitle] = useState(displayTitle || 'NIFTY 50');
+  const [activeExpiry, setActiveExpiry] = useState(expiry || null);
+  const [activeStrike, setActiveStrike] = useState(strike || null);
+  const [activeOptType, setActiveOptType] = useState(optType || 'CE');
+  const [activeIsOption, setActiveIsOption] = useState(!!isOption);
   const [resolution, setResolution] = useState('5');
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -134,11 +138,15 @@ export default function ChartView({
     if (symbol) {
       setActiveSymbol(symbol);
       setActiveTitle(displayTitle || symbol);
+      setActiveExpiry(expiry || null);
+      setActiveStrike(strike || null);
+      setActiveOptType(optType || 'CE');
+      setActiveIsOption(!!isOption);
     }
-  }, [symbol, displayTitle]);
+  }, [symbol, displayTitle, expiry, strike, optType, isOption]);
 
   const effectiveFyersSymbol = toFyersSymbol(activeSymbol);
-  const effectiveTvSymbol = toTradingViewSymbol(activeSymbol, expiry, strike, optType);
+  const effectiveTvSymbol = toTradingViewSymbol(activeSymbol, activeExpiry, activeStrike, activeOptType);
   const tvWebUrl = getTradingViewWebUrl(effectiveTvSymbol);
   const fyersWebUrl = `https://trade.fyers.in/?symbol=${encodeURIComponent(effectiveFyersSymbol)}`;
 
@@ -435,6 +443,10 @@ export default function ChartView({
   const handleSelectChip = (chip) => {
     setActiveSymbol(chip.symbol);
     setActiveTitle(chip.label);
+    setActiveExpiry(null);
+    setActiveStrike(null);
+    setActiveOptType('CE');
+    setActiveIsOption(false);
     if (onOpenChart) {
       onOpenChart(chip.symbol, chip.label);
     }
@@ -447,6 +459,10 @@ export default function ChartView({
     const query = searchQuery.trim().toUpperCase();
     setActiveSymbol(query);
     setActiveTitle(query);
+    setActiveExpiry(null);
+    setActiveStrike(null);
+    setActiveOptType('CE');
+    setActiveIsOption(false);
     setSearchQuery('');
     if (onOpenChart) {
       onOpenChart(query, query);
