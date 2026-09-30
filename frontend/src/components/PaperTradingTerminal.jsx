@@ -12,6 +12,7 @@ import {
 } from '../utils/optionsAnalytics';
 
 const STORAGE_KEY = 'stock_finder_paper_trades';
+const TEMPLATES_STORAGE_KEY = 'stock_finder_saved_strategies';
 
 export default function PaperTradingTerminal({
   isOpen = false,
@@ -43,6 +44,16 @@ export default function PaperTradingTerminal({
   }, [activeLegs.length]);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [strategyName, setStrategyName] = useState('');
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [savedStrategies, setSavedStrategies] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [deployedTrades, setDeployedTrades] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -52,6 +63,15 @@ export default function PaperTradingTerminal({
     }
   });
   const [deployNotification, setDeployNotification] = useState(null);
+
+  // Sync saved strategies to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(savedStrategies));
+    } catch (e) {
+      console.error('Failed to save strategy templates:', e);
+    }
+  }, [savedStrategies]);
 
   // Sync deployed trades to localStorage
   useEffect(() => {
@@ -66,12 +86,14 @@ export default function PaperTradingTerminal({
   const enrichedLegs = useMemo(() => {
     return activeLegs.map(leg => {
       const key = `${leg.strike}_${leg.type}`;
-      const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : leg.entryPrice;
+      const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (leg.entryPrice || 100);
+      const effectiveEntry = leg.entryPrice !== undefined && leg.entryPrice !== null ? parseFloat(leg.entryPrice) || 0 : liveLtp;
       const totalQty = (leg.lots || 1) * (leg.lotSize || lotSize || 50);
       const isBuy = leg.action === 'BUY';
-      const pnl = isBuy ? (liveLtp - leg.entryPrice) * totalQty : (leg.entryPrice - liveLtp) * totalQty;
+      const pnl = isBuy ? (liveLtp - effectiveEntry) * totalQty : (effectiveEntry - liveLtp) * totalQty;
       return {
         ...leg,
+        entryPrice: effectiveEntry,
         currentLtp: liveLtp,
         livePnl: Math.round(pnl)
       };
@@ -123,6 +145,13 @@ export default function PaperTradingTerminal({
     onUpdateLegs(updated);
   };
 
+  const handleUpdateEntryPrice = (index, newPrice) => {
+    const updated = [...activeLegs];
+    const parsed = parseFloat(newPrice);
+    updated[index] = { ...updated[index], entryPrice: isNaN(parsed) ? newPrice : parsed };
+    onUpdateLegs(updated);
+  };
+
   const handleToggleAction = (index) => {
     const updated = [...activeLegs];
     updated[index] = {
@@ -139,14 +168,58 @@ export default function PaperTradingTerminal({
 
   const handleClearAll = () => {
     onUpdateLegs([]);
+    setStrategyName('');
+  };
+
+  // Save Strategy Template with Custom Name
+  const handleSaveStrategy = (e) => {
+    e?.preventDefault();
+    if (!activeLegs || activeLegs.length === 0) return;
+    const name = strategyName.trim() || `${symbol} ${activeLegs.length}-Leg Strategy`;
+    
+    const newTemplate = {
+      id: `strat-${Date.now()}`,
+      name,
+      symbol,
+      expiry,
+      savedAt: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      legs: activeLegs.map(l => ({ ...l })),
+      spotAtSave: currentSpot,
+      maxProfit: metrics.maxProfit,
+      maxLoss: metrics.maxLoss,
+      pop
+    };
+
+    setSavedStrategies(prev => [newTemplate, ...prev.filter(s => s.name !== name)]);
+    setIsSaveModalOpen(false);
+    setDeployNotification(`Strategy "${name}" saved successfully!`);
+    setTimeout(() => setDeployNotification(null), 4000);
+  };
+
+  // Load Saved Strategy
+  const handleLoadStrategy = (strategy) => {
+    if (strategy && strategy.legs) {
+      onUpdateLegs(strategy.legs.map(l => ({ ...l })));
+      setStrategyName(strategy.name || '');
+      setActiveTab('builder');
+      setDeployNotification(`Loaded strategy "${strategy.name}"!`);
+      setTimeout(() => setDeployNotification(null), 3000);
+    }
+  };
+
+  // Delete Saved Strategy
+  const handleDeleteSavedStrategy = (id) => {
+    setSavedStrategies(prev => prev.filter(s => s.id !== id));
   };
 
   // Deploy paper trade into active portfolio
   const handleDeployTrade = () => {
     if (!activeLegs || activeLegs.length === 0) return;
+    const name = strategyName.trim() || `${symbol} ${activeLegs.length}-Leg Trade`;
 
     const newTrade = {
       id: `PT-${Date.now()}`,
+      name,
       symbol,
       expiry,
       spotAtEntry: currentSpot,
@@ -160,11 +233,12 @@ export default function PaperTradingTerminal({
     };
 
     setDeployedTrades(prev => [newTrade, ...prev]);
-    setDeployNotification(`Paper Strategy deployed with ${activeLegs.length} legs!`);
+    setDeployNotification(`Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
     setTimeout(() => setDeployNotification(null), 4000);
     setActiveTab('deployed');
     // Clear builder legs
     onUpdateLegs([]);
+    setStrategyName('');
   };
 
   // Square off deployed position
@@ -230,20 +304,39 @@ export default function PaperTradingTerminal({
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('saved')}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                activeTab === 'saved'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Saved ({savedStrategies.length})</span>
+            </button>
           </div>
         </div>
 
         {/* Right: Quick Controls */}
         <div className="flex items-center gap-1.5">
           {activeTab === 'builder' && activeLegs.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
-              title="Clear all active strategy legs"
-            >
-              <RotateCcw className="w-2.5 h-2.5" />
-              <span>Reset</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsSaveModalOpen(true)}
+                className="px-2 py-0.5 rounded bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-500/40 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                title="Save this strategy with custom name"
+              >
+                <span>💾 Save Strategy</span>
+              </button>
+              <button
+                onClick={handleClearAll}
+                className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 border border-slate-700 text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                title="Clear all active strategy legs"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>Reset</span>
+              </button>
+            </>
           )}
 
           {!isDocked && (
@@ -284,6 +377,27 @@ export default function PaperTradingTerminal({
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-900">
           {activeTab === 'builder' ? (
             <div className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 flex flex-col`}>
+              {/* Strategy Name Banner Input */}
+              <div className="flex items-center gap-2 bg-slate-950 p-1.5 px-2.5 rounded-xl border border-slate-800 shrink-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Strategy Name:</span>
+                <input
+                  type="text"
+                  placeholder={`e.g., ${symbol} Bull Call Spread / Iron Condor`}
+                  value={strategyName}
+                  onChange={(e) => setStrategyName(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-semibold"
+                />
+                {activeLegs.length > 0 && (
+                  <button
+                    onClick={handleSaveStrategy}
+                    className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] shadow-sm transition-all cursor-pointer shrink-0"
+                    title="Save strategy with this name"
+                  >
+                    Save
+                  </button>
+                )}
+              </div>
+
               {/* 1. Key Metrics Strip (2x2 Grid) */}
               <div className="grid grid-cols-2 gap-2 shrink-0">
                 {/* Required Margin */}
@@ -396,6 +510,19 @@ export default function PaperTradingTerminal({
                           </button>
                         </div>
 
+                        {/* Editable Entry Price Input */}
+                        <div className="flex items-center gap-0.5 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800" title="Custom Entry Price (₹)">
+                          <span className="text-[9px] text-slate-400 font-bold">Entry:₹</span>
+                          <input
+                            type="number"
+                            step="0.05"
+                            value={leg.entryPrice !== undefined ? leg.entryPrice : leg.currentLtp}
+                            onChange={(e) => handleUpdateEntryPrice(index, e.target.value)}
+                            className="w-14 bg-transparent text-white font-mono font-bold text-xs focus:outline-none text-right border-b border-indigo-500/40 focus:border-indigo-400"
+                            title="Edit your execution / entry price"
+                          />
+                        </div>
+
                         {/* PnL */}
                         <div className="text-right font-mono text-[11px]">
                           <span className="text-slate-400 text-[10px] block">LTP: ₹{leg.currentLtp}</span>
@@ -440,16 +567,26 @@ export default function PaperTradingTerminal({
                 </div>
               </div>
 
-              {/* 4. Deploy Button */}
-              <button
-                onClick={handleDeployTrade}
-                disabled={enrichedLegs.length === 0}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 mt-auto"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                <span>Deploy Paper Trade ({enrichedLegs.length} Legs)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {/* 4. Action Buttons (Save & Deploy) */}
+              <div className="flex items-center gap-2 shrink-0 mt-auto">
+                <button
+                  onClick={() => setIsSaveModalOpen(true)}
+                  disabled={enrichedLegs.length === 0}
+                  className="w-1/3 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-bold text-xs shadow-md shadow-purple-900/30 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  title="Save this strategy with custom name"
+                >
+                  <span>💾 Save</span>
+                </button>
+                <button
+                  onClick={handleDeployTrade}
+                  disabled={enrichedLegs.length === 0}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-200" />
+                  <span>Deploy Paper Trade ({enrichedLegs.length} Legs)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ) : (
             /* Deployed Paper Portfolio Tab */
@@ -543,6 +680,51 @@ export default function PaperTradingTerminal({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Save Strategy Modal */}
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-5 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>💾 Save Strategy Template</span>
+              </h3>
+              <button onClick={() => setIsSaveModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              Save your configured legs and custom entry prices with a custom name to reuse or analyze anytime.
+            </p>
+            <form onSubmit={handleSaveStrategy} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Strategy Name (e.g. Iron Fly, Ratio Spread)"
+                value={strategyName}
+                onChange={(e) => setStrategyName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-semibold"
+                autoFocus
+                required
+              />
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSaveModalOpen(false)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-900/30 cursor-pointer"
+                >
+                  Save Strategy
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
