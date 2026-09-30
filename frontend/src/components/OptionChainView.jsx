@@ -3,7 +3,7 @@ import {
   Layers, Search, RefreshCw, ChevronDown, Activity, Zap, 
   ExternalLink, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   ShieldCheck, AlertCircle, Info, Filter, Clock, Eye, BarChart2, Target,
-  X, CheckCircle2, Key
+  X, CheckCircle2, Key, ArrowUp, ArrowDown
 } from 'lucide-react';
 import RealTimeChartModal from './RealTimeChartModal';
 import PaperTradingTerminal from './PaperTradingTerminal';
@@ -626,22 +626,28 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
     setSearchStock('');
   };
 
-  // Determine PCR sentiment
-  const pcr = chainData?.pcr_oi || 1.0;
-  let pcrSentiment = 'Neutral / Rangebound';
-  let pcrColor = 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-  if (pcr >= 1.25) {
-    pcrSentiment = 'Strong Bullish Bias';
-    pcrColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-  } else if (pcr >= 1.05) {
-    pcrSentiment = 'Mildly Bullish';
-    pcrColor = 'text-teal-400 border-teal-500/30 bg-teal-500/10';
-  } else if (pcr <= 0.75) {
-    pcrSentiment = 'Strong Bearish Bias';
-    pcrColor = 'text-rose-400 border-rose-500/30 bg-rose-500/10';
-  } else if (pcr < 0.95) {
-    pcrSentiment = 'Mildly Bearish';
-    pcrColor = 'text-orange-400 border-orange-500/30 bg-orange-500/10';
+  // Determine PCR sentiment and indicator
+  const pcrVal = typeof chainData?.pcr_oi === 'number' 
+    ? chainData.pcr_oi 
+    : parseFloat(chainData?.pcr_oi) || 1.0;
+
+  let pcrType = 'neutral'; // 'bullish' | 'bearish' | 'neutral'
+  let pcrSentiment = 'Neutral Market';
+  // Saffron color (#f59e0b / amber-500)
+  let pcrColor = 'text-amber-500 border-amber-500/40 bg-amber-500/10';
+
+  if (pcrVal > 1.05) {
+    pcrType = 'bullish';
+    pcrSentiment = 'Bullish Market';
+    pcrColor = 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10';
+  } else if (pcrVal < 0.95) {
+    pcrType = 'bearish';
+    pcrSentiment = 'Bearish Market';
+    pcrColor = 'text-rose-400 border-rose-500/40 bg-rose-500/10';
+  } else {
+    pcrType = 'neutral';
+    pcrSentiment = 'Neutral Market';
+    pcrColor = 'text-amber-500 border-amber-500/40 bg-amber-500/10';
   }
 
   // Format Large Numbers (Lakhs / Crores)
@@ -978,10 +984,21 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
 
           {/* Right: Derivatives Metrics & Market Status Indicator */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* PCR */}
-            <div className={`px-2 py-0.5 rounded-lg border flex items-center gap-1 text-xs ${pcrColor}`}>
+            {/* PCR Indicator Badge */}
+            <div 
+              className={`px-2 py-0.5 rounded-lg border flex items-center gap-1 text-xs transition-all shadow-sm ${pcrColor}`}
+              title={`PCR: ${chainData?.pcr_oi || '—'} • ${pcrSentiment}`}
+            >
               <span className="text-slate-400 font-medium text-[11px]">PCR:</span>
-              <span className="font-mono font-bold">{chainData?.pcr_oi || '—'}</span>
+              <div className="flex items-center gap-0.5">
+                <span className="font-mono font-black">{chainData?.pcr_oi || '—'}</span>
+                {pcrType === 'bullish' && (
+                  <ArrowUp className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                )}
+                {pcrType === 'bearish' && (
+                  <ArrowDown className="w-3 h-3 text-rose-400 stroke-[3]" />
+                )}
+              </div>
             </div>
 
             {/* Max Pain */}
