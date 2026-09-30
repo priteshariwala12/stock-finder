@@ -33,11 +33,12 @@ export default function PayoffChart({
 
   // Base curve calculation (auto-scaled) with both Expiry and T+0 curves
   const baseCurve = useMemo(() => {
-    return generatePayoffCurve(legs, effectiveSpot, 0.08, 120, 3);
+    return generatePayoffCurve(legs, effectiveSpot, 0.20, 200, 3);
   }, [legs, effectiveSpot]);
 
-  const baseLower = baseCurve.lowerBound || (effectiveSpot * 0.94);
-  const baseUpper = baseCurve.upperBound || (effectiveSpot * 1.06);
+  // Default / Reset range is strictly +/- 2% from centre spot (user can zoom out to infinity)
+  const baseLower = Math.round(effectiveSpot * 0.98);
+  const baseUpper = Math.round(effectiveSpot * 1.02);
 
   // Active bounds (zoomed or base)
   const lowerBound = zoomDomain ? zoomDomain.lower : baseLower;

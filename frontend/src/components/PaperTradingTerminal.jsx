@@ -15,6 +15,11 @@ import {
 const STORAGE_KEY = 'stock_finder_paper_trades';
 const TEMPLATES_STORAGE_KEY = 'stock_finder_saved_strategies';
 
+const formatPrice = (val) => {
+  if (val === undefined || val === null || val === '' || isNaN(Number(val))) return '0.00';
+  return Number(val).toFixed(2);
+};
+
 export default function PaperTradingTerminal({
   isOpen = false,
   onClose,
@@ -658,7 +663,7 @@ export default function PaperTradingTerminal({
 
                         {/* PnL */}
                         <div className="text-right font-mono text-[11px]">
-                          <span className="text-slate-400 text-[10px] block">LTP: ₹{leg.currentLtp}</span>
+                          <span className="text-slate-400 text-[10px] block">LTP: ₹{formatPrice(leg.currentLtp)}</span>
                           <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
                           </span>
@@ -949,7 +954,7 @@ export default function PaperTradingTerminal({
                                   <div className="flex items-center gap-3 font-mono text-xs">
                                     <div>
                                       <span className="text-slate-400 text-[10px] block text-right">Entry $\rightarrow$ LTP</span>
-                                      <span className="text-slate-300 font-semibold">₹{leg.entryPrice} $\rightarrow$ ₹{leg.currentLtp}</span>
+                                      <span className="text-slate-300 font-semibold">₹{formatPrice(leg.entryPrice)} $\rightarrow$ ₹{formatPrice(leg.currentLtp)}</span>
                                     </div>
 
                                     <div className="text-right min-w-[70px]">

@@ -652,6 +652,12 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
     return val.toLocaleString('en-IN');
   };
 
+  // Format Price with strict 2 decimals (e.g., 43.5 -> 43.50)
+  const formatPrice = (val) => {
+    if (val === undefined || val === null || val === '' || isNaN(Number(val))) return '—';
+    return Number(val).toFixed(2);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 text-slate-100 relative">
       {/* Dimmed Page Backdrop Overlay when Search is Active */}
@@ -1128,16 +1134,16 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
 
                       {/* CE: Bid / Ask */}
                       <td className={`py-1.5 px-2 text-right text-[10px] text-slate-400 ${ceItmBg}`}>
-                        <span className="text-slate-300">{ce.bid || '—'}</span> / <span className="text-slate-300">{ce.ask || '—'}</span>
+                        <span className="text-slate-300">{formatPrice(ce.bid)}</span> / <span className="text-slate-300">{formatPrice(ce.ask)}</span>
                       </td>
 
                       {/* CE: Change */}
                       <td className={`py-1.5 px-2 text-right ${ceItmBg}`}>
                         <span className={`font-bold ${ce.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {ce.change >= 0 ? '+' : ''}{ce.change}
+                          {ce.change >= 0 ? '+' : ''}{formatPrice(ce.change)}
                         </span>
                         <span className="block text-[9px] text-slate-500">
-                          ({ce.pchange >= 0 ? '+' : ''}{ce.pchange}%)
+                          ({ce.pchange >= 0 ? '+' : ''}{formatPrice(ce.pchange)}%)
                         </span>
                       </td>
 
@@ -1155,14 +1161,14 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
                               className="w-5 h-4.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-95 cursor-pointer"
-                              title={`BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                              title={`BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${formatPrice(ce.ltp)}`}
                             >
                               B
                             </button>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
                               className="w-5 h-4.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-95 cursor-pointer"
-                              title={`SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                              title={`SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${formatPrice(ce.ltp)}`}
                             >
                               S
                             </button>
@@ -1174,7 +1180,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                             className="flex items-center gap-1 cursor-pointer font-mono font-bold text-xs text-emerald-300 hover:text-emerald-200 hover:underline"
                             title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
                           >
-                            <span>₹{ce.ltp !== undefined ? ce.ltp : '—'}</span>
+                            <span>₹{formatPrice(ce.ltp)}</span>
                             <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-emerald-400 transition-opacity" />
                           </div>
                         </div>
@@ -1211,7 +1217,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                             className="flex items-center gap-1 cursor-pointer font-mono font-bold text-xs text-rose-300 hover:text-rose-200 hover:underline"
                             title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
                           >
-                            <span>₹{pe.ltp !== undefined ? pe.ltp : '—'}</span>
+                            <span>₹{formatPrice(pe.ltp)}</span>
                             <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-rose-400 transition-opacity" />
                           </div>
 
@@ -1224,14 +1230,14 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
                               className="w-5 h-4.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-95 cursor-pointer"
-                              title={`BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                              title={`BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${formatPrice(pe.ltp)}`}
                             >
                               B
                             </button>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
                               className="w-5 h-4.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-95 cursor-pointer"
-                              title={`SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                              title={`SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${formatPrice(pe.ltp)}`}
                             >
                               S
                             </button>
@@ -1242,16 +1248,16 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                       {/* PE: Change */}
                       <td className={`py-1.5 px-2 text-left ${peItmBg}`}>
                         <span className={`font-bold ${pe.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {pe.change >= 0 ? '+' : ''}{pe.change}
+                          {pe.change >= 0 ? '+' : ''}{formatPrice(pe.change)}
                         </span>
                         <span className="block text-[9px] text-slate-500">
-                          ({pe.pchange >= 0 ? '+' : ''}{pe.pchange}%)
+                          ({pe.pchange >= 0 ? '+' : ''}{formatPrice(pe.pchange)}%)
                         </span>
                       </td>
 
                       {/* PE: Bid / Ask */}
                       <td className={`py-1.5 px-2 text-left text-[10px] text-slate-400 ${peItmBg}`}>
-                        <span className="text-slate-300">{pe.bid || '—'}</span> / <span className="text-slate-300">{pe.ask || '—'}</span>
+                        <span className="text-slate-300">{formatPrice(pe.bid)}</span> / <span className="text-slate-300">{formatPrice(pe.ask)}</span>
                       </td>
 
                       {/* PE: IV */}

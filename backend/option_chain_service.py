@@ -580,6 +580,14 @@ def build_option_chain_response(
             "diff_from_spot": round(strike - spot, 2)
         })
 
+    # Find ATM Strike as per CE ceiling rule (smallest strike >= spot)
+    all_valid_strikes = [s["strike"] for s in parsed_strikes if s["strike"] > 0]
+    ce_atm_candidates = [s for s in all_valid_strikes if s >= spot]
+    if ce_atm_candidates:
+        atm_strike = min(ce_atm_candidates)
+    elif all_valid_strikes:
+        atm_strike = max(all_valid_strikes)
+
     # Mark ATM strike
     for stk in parsed_strikes:
         if stk["strike"] == atm_strike:

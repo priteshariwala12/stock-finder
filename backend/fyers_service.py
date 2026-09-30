@@ -281,8 +281,12 @@ def get_fyers_parsed_option_chain(symbol: str, strikecount: int = 25) -> Optiona
     if not sorted_strikes:
         return None
 
-    # 3. Find ATM Strike (closest to spot price)
-    atm_strike = min(sorted_strikes, key=lambda k: abs(k - spot_price))
+    # 3. Find ATM Strike as per CE ceiling rule (smallest strike >= spot_price)
+    ce_atm_candidates = [k for k in sorted_strikes if k >= spot_price]
+    if ce_atm_candidates:
+        atm_strike = min(ce_atm_candidates)
+    else:
+        atm_strike = max(sorted_strikes)
 
     parsed_strikes = []
     for k in sorted_strikes:
