@@ -11,6 +11,7 @@ import SectorFlowView from './components/SectorFlowView';
 import MarketHeatmapView from './components/MarketHeatmapView';
 import MarketPictureView from './components/MarketPictureView';
 import LearnView from './components/LearnView';
+import FyersConnectModal from './components/FyersConnectModal';
 import OptionChainView from './components/OptionChainView';
 import ChartView from './components/ChartView';
 
@@ -168,11 +169,33 @@ export default function App() {
   // Modals & Drawers
   const [selectedStockSymbol, setSelectedStockSymbol] = useState(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isFyersModalOpen, setIsFyersModalOpen] = useState(false);
   const [isSavePresetModalOpen, setIsSavePresetModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMobileFilterSidebarOpen, setIsMobileFilterSidebarOpen] = useState(false);
   const [isDesktopFilterSidebarOpen, setIsDesktopFilterSidebarOpen] = useState(false);
   const [highlightFilter, setHighlightFilter] = useState(false);
+
+  // FYERS connection status state
+  const [fyersStatus, setFyersStatus] = useState({ authenticated: false });
+
+  // Fetch FYERS status on mount
+  const fetchFyersStatus = async () => {
+    try {
+      const res = await fetch('/api/fyers/status');
+      if (res.ok) {
+        const data = await res.json();
+        setFyersStatus(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch Fyers status:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchFyersStatus();
+  }, []);
+
 
   // Active Chart Segment Configuration
   const [activeChartConfig, setActiveChartConfig] = useState({
@@ -208,7 +231,7 @@ export default function App() {
 
 
 
-  // Load initial market summary, presets, sectors, and user watchlist
+  // Load initial presets, sectors, user watchlist, and poll market summary every 1 second
   useEffect(() => {
     fetchMarketSummary();
     fetchPresets();
@@ -216,6 +239,10 @@ export default function App() {
     if (token) {
       fetchWatchlist(token);
     }
+    const interval = setInterval(() => {
+      fetchMarketSummary();
+    }, 1000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const fetchWatchlist = async (authToken) => {
@@ -508,6 +535,8 @@ export default function App() {
         onToggleNav={() => setIsNavOpen(prev => !prev)}
         marketSummary={marketSummary}
         onOpenSync={() => setIsSyncModalOpen(true)}
+        onOpenFyersConnect={() => setIsFyersModalOpen(true)}
+        fyersStatus={fyersStatus}
         currentTheme={currentTheme}
         onThemeChange={setCurrentTheme}
         user={user}
@@ -534,7 +563,9 @@ export default function App() {
           {currentView === 'chart' && (
             <ChartView 
               {...activeChartConfig} 
-              onOpenChart={handleOpenChart} 
+              onOpenChart={handleOpenChart}
+              onOpenFyersConnect={() => setIsFyersModalOpen(true)}
+              fyersStatus={fyersStatus}
             />
           )}
 
@@ -551,6 +582,8 @@ export default function App() {
             <OptionChainView 
               onSelectStock={handleOpenChart} 
               onOpenChart={handleOpenChart} 
+              onOpenFyersConnect={() => setIsFyersModalOpen(true)} 
+              fyersStatus={fyersStatus} 
             />
           )}
 
@@ -628,6 +661,15 @@ export default function App() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Fyers Connect Modal */}
+      <FyersConnectModal
+        isOpen={isFyersModalOpen}
+        onClose={() => setIsFyersModalOpen(false)}
+        onSuccess={() => {
+          fetchFyersStatus();
+        }}
       />
     </div>
   );

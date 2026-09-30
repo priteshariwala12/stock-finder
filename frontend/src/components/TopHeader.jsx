@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Menu, RefreshCw, Palette, User, LogOut, Star,
-  TrendingUp, TrendingDown, ChevronDown, Bell, ShieldCheck
+  TrendingUp, TrendingDown, ChevronDown, Bell, ShieldCheck, Zap
 } from 'lucide-react';
 
 const THEMES = [
@@ -32,6 +32,8 @@ export default function TopHeader({
   onOpenMobileMenu,
   marketSummary,
   onOpenSync,
+  onOpenFyersConnect,
+  fyersStatus,
   currentTheme,
   onThemeChange,
   user,
@@ -191,6 +193,32 @@ export default function TopHeader({
 
       {/* Right: Theme, Sync, Auth */}
       <div className="flex items-center gap-2">
+        {/* Sync Fyers API Button */}
+        {onOpenFyersConnect && (
+          <button
+            onClick={onOpenFyersConnect}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+              fyersStatus?.authenticated
+                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/40 shadow-sm'
+                : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/20 animate-pulse'
+            }`}
+            title={
+              fyersStatus?.authenticated
+                ? 'Fyers API Connected (Zero-Delay Live Stream Active) - Click to Manage'
+                : 'Fyers API Token Expired - Click to Sync Fyers API Link to Connect'
+            }
+          >
+            {fyersStatus?.authenticated ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            ) : (
+              <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            )}
+            <span className="font-mono">
+              {fyersStatus?.authenticated ? 'Fyers Live' : 'Sync Fyers API'}
+            </span>
+          </button>
+        )}
+
         {/* Sync Data Button */}
         <button
           onClick={onOpenSync}

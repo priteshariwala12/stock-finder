@@ -17,7 +17,7 @@ const POPULAR_INDICES = [
   { symbol: 'BANKEX', name: 'BSE BANKEX', lot: 30 },
 ];
 
-export default function OptionChainView({ onSelectStock, onOpenChart }) {
+export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyersConnect }) {
   // Navigation & Selection States
   const [selectedSymbol, setSelectedSymbol] = useState('NIFTY');
   const [selectedExpiry, setSelectedExpiry] = useState('');
@@ -41,7 +41,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(10); // 10s default for exchange safety; 1s when Fyers connected
+  const [refreshInterval, setRefreshInterval] = useState(1); // 1s real-time ticking refresh
   const [isPaperTerminalOpen, setIsPaperTerminalOpen] = useState(() => {
     try {
       const saved = localStorage.getItem('stock_finder_paper_terminal_open');
@@ -742,17 +742,18 @@ export default function OptionChainView({ onSelectStock, onOpenChart }) {
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : 'text-slate-400'}`} />
             </button>
 
-            {/* Subtle Broker Icon Button */}
+            {/* Sync Fyers API Button */}
             <button
-              onClick={() => setIsFyersModalOpen(true)}
-              className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                fyersStatus.authenticated
+              onClick={onOpenFyersConnect || (() => setIsFyersModalOpen(true))}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
+                fyersStatus?.authenticated
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
-                  : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+                  : 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 animate-pulse shadow-amber-500/10'
               }`}
-              title={fyersStatus.authenticated ? "Fyers 1s Stream Active (Click to manage)" : "Connect Fyers Broker API for 1s Stream"}
+              title={fyersStatus?.authenticated ? "Fyers 1s Stream Active (Click to manage)" : "Daily Fyers Token Expired - Click to Sync Fyers API Link"}
             >
-              <Zap className={`w-3.5 h-3.5 ${fyersStatus.authenticated ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <Zap className={`w-3.5 h-3.5 ${fyersStatus?.authenticated ? 'text-emerald-400' : 'text-amber-400'}`} />
+              <span className="font-mono text-[11px]">{fyersStatus?.authenticated ? 'Fyers 1s' : 'Sync Fyers API'}</span>
             </button>
           </div>
         </div>
@@ -817,7 +818,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart }) {
 
               {autoRefresh && (
                 <div className="flex items-center gap-0.5 pl-1 border-l border-slate-800">
-                  {(fyersStatus.authenticated ? [1, 2, 5] : [10, 15, 30]).map(sec => (
+                  {[1, 2, 5, 10].map(sec => (
                     <button
                       key={sec}
                       onClick={() => setRefreshInterval(sec)}

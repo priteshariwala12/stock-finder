@@ -76,7 +76,9 @@ export default function ChartView({
   expiry = null,
   strike = null,
   optType = 'CE',
-  onOpenChart = null
+  onOpenChart = null,
+  onOpenFyersConnect = null,
+  fyersStatus = null
 }) {
   const [activeSymbol, setActiveSymbol] = useState(symbol || 'NSE:NIFTY');
   const [activeTitle, setActiveTitle] = useState(displayTitle || 'NIFTY 50');
@@ -431,11 +433,11 @@ export default function ChartView({
     }
   }, [showSma50]);
 
-  // Live Auto-Polling every 3 seconds for zero-delay ticking candles
+  // Live Auto-Polling every 1 second for zero-delay ticking candles and real-time prices
   useEffect(() => {
     const timer = setInterval(() => {
       fetchCandles(resolution, true);
-    }, 3000);
+    }, 1000);
     return () => clearInterval(timer);
   }, [resolution, fetchCandles]);
 
@@ -654,6 +656,24 @@ export default function ChartView({
             <span>TV.com</span>
           </a>
 
+          {/* Sync / Connect Fyers API Button */}
+          {onOpenFyersConnect && (
+            <button
+              onClick={onOpenFyersConnect}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm ${
+                fyersStatus?.authenticated
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 animate-pulse shadow-amber-500/10'
+              }`}
+              title="Sync Fyers API Link to Connect (Daily 0-Delay Live Feed)"
+            >
+              <Zap className={`w-3.5 h-3.5 ${fyersStatus?.authenticated ? 'text-emerald-400' : 'text-amber-400'}`} />
+              <span className="hidden sm:inline font-mono">
+                {fyersStatus?.authenticated ? 'Fyers Live' : 'Sync Fyers API'}
+              </span>
+            </button>
+          )}
+
           {/* Fyers Direct Terminal Link */}
           <a
             href={fyersWebUrl}
@@ -662,8 +682,8 @@ export default function ChartView({
             className="hidden sm:flex px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
             title="Open in Fyers Web Trading Terminal"
           >
-            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Fyers</span>
+            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+            <span>Fyers Web</span>
           </a>
 
           {/* Refresh Button */}
@@ -702,14 +722,23 @@ export default function ChartView({
         {errorMessage && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-slate-950/85 backdrop-blur-sm text-center">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-3">
-              <BarChart2 className="w-6 h-6" />
+              <Zap className="w-6 h-6 animate-pulse" />
             </div>
             <h3 className="text-base font-bold text-white mb-1">No Candle Stream for {activeTitle}</h3>
             <p className="text-xs text-slate-400 max-w-md mb-4">{errorMessage}</p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {onOpenFyersConnect && (
+                <button
+                  onClick={onOpenFyersConnect}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-lg shadow-amber-500/25 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-current" />
+                  <span>Sync Fyers API Link to Connect</span>
+                </button>
+              )}
               <button
                 onClick={() => fetchCandles(resolution)}
-                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md"
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
               >
                 Retry Stream
               </button>
@@ -717,7 +746,7 @@ export default function ChartView({
                 href={tvWebUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-900/40"
+                className="px-4 py-2 rounded-lg bg-[#2962FF] hover:bg-[#1E53E5] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-900/40 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>Open in TV.com</span>

@@ -13,8 +13,8 @@ export default function MarketHeatmapView({ onSelectStock }) {
   const [hoveredStock, setHoveredStock] = useState(null);
   const [fnoOnly, setFnoOnly] = useState(false);
 
-  const fetchHeatmap = async (currentFno = fnoOnly) => {
-    setIsLoading(true);
+  const fetchHeatmap = async (currentFno = fnoOnly, isPolling = false) => {
+    if (!isPolling) setIsLoading(true);
     try {
       const res = await fetch(`/api/market/heatmap?limit=150&fno_only=${currentFno}`);
       if (res.ok) {
@@ -25,12 +25,16 @@ export default function MarketHeatmapView({ onSelectStock }) {
     } catch (e) {
       console.error('Failed to load market heatmap:', e);
     } finally {
-      setIsLoading(false);
+      if (!isPolling) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchHeatmap(fnoOnly);
+    fetchHeatmap(fnoOnly, false);
+    const interval = setInterval(() => {
+      fetchHeatmap(fnoOnly, true);
+    }, 1000);
+    return () => clearInterval(interval);
   }, [fnoOnly]);
 
   const getHeatmapColor = (chg) => {

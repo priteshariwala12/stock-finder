@@ -28,6 +28,10 @@ export default function MarketPictureView({ onSelectStock, onSwitchToScreener })
 
   useEffect(() => {
     fetchMarketPicture(exchange, fnoOnly);
+    const interval = setInterval(() => {
+      fetchMarketPicture(exchange, fnoOnly);
+    }, 1000);
+    return () => clearInterval(interval);
   }, [exchange, fnoOnly]);
 
   const breadth = marketPic?.breadth || { advances: 0, declines: 0, unchanged: 0, ad_ratio: 1.0 };

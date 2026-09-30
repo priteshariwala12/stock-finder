@@ -89,10 +89,11 @@ def set_auth_code(auth_code: str) -> Dict[str, Any]:
         with open(TOKEN_FILE, "w") as f:
             json.dump({"access_token": access_token}, f)
         logger.info("Fyers access token successfully generated and cached!")
-        return {"status": "success", "access_token": access_token}
+        return {"status": "success", "message": "Fyers access token successfully generated and cached!", "access_token": access_token}
     else:
+        err_msg = response.get("message") if response else "Failed to generate token with Fyers API"
         logger.error(f"Fyers token generation failed: {response}")
-        return {"status": "error", "response": response}
+        return {"status": "error", "message": err_msg, "response": response}
 
 def is_jwt_token_valid(token: str) -> bool:
     """Checks if JWT token is non-empty and expiration timestamp is in the future."""

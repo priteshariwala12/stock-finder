@@ -1220,22 +1220,22 @@ def api_fyers_status():
 @app.post("/api/fyers/set-auth-code")
 def api_fyers_set_auth_code(data: dict = Body(...)):
     """Set new auth code after daily Fyers login to generate fresh access token"""
-    auth_code = data.get("auth_code") or data.get("auth_url")
-    if not auth_code:
+    raw_input = data.get("auth_code") or data.get("auth_url") or ""
+    if not raw_input:
         raise HTTPException(status_code=400, detail="auth_code is required")
-    # If full redirect URL was pasted, extract auth_code parameter
-    if "auth_code=" in auth_code:
-        import urllib.parse
-        parsed = urllib.parse.urlparse(auth_code)
-        params = urllib.parse.parse_qs(parsed.query)
-        if "auth_code" in params:
-            auth_code = params["auth_code"][0]
+    
+    raw_input = raw_input.strip()
+    # If full redirect URL or query string was pasted, extract auth_code cleanly
+    import re
+    m = re.search(r"auth_code=([^&\s#\"']+)", raw_input)
+    auth_code = m.group(1) if m else raw_input
 
     try:
         from fyers_service import set_auth_code
         result = set_auth_code(auth_code.strip())
         return result
     except Exception as e:
+        logger.error(f"Error setting Fyers auth code: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
