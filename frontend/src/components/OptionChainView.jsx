@@ -366,6 +366,16 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
     return chainData.strikes.slice(start, end);
   }, [chainData, strikeRange]);
 
+  // Maximum OI across visible strikes for institutional depth bars
+  const maxOi = useMemo(() => {
+    let max = 1000;
+    for (const s of visibleStrikes) {
+      if (s.ce?.oi && s.ce.oi > max) max = s.ce.oi;
+      if (s.pe?.oi && s.pe.oi > max) max = s.pe.oi;
+    }
+    return max;
+  }, [visibleStrikes]);
+
   // Automatically focus and center on ATM strike when option chain loads or selection changes
   useEffect(() => {
     if (!isLoading && chainData && visibleStrikes.length > 0) {
@@ -1028,7 +1038,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                   <th colSpan={6} className="py-2 text-center text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/40 border-r border-slate-800">
                     CALLS (CE)
                   </th>
-                  <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-2 w-36 min-w-[144px] max-w-[144px]">
+                  <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-2 w-24 min-w-[96px] max-w-[100px]">
                     STRIKE
                   </th>
                   <th colSpan={6} className="py-2 text-center text-rose-400 font-bold uppercase tracking-wider bg-rose-950/40">
@@ -1043,17 +1053,17 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                   <th className="py-2 px-2 text-right">IV (%)</th>
                   <th className="py-2 px-2 text-right">Bid / Ask</th>
                   <th className="py-2 px-2 text-right">Change</th>
-                  <th className="py-2 px-3 text-right border-r border-slate-800 text-emerald-300 font-bold">
+                  <th className="py-2 px-2 text-right border-r border-slate-800 text-emerald-300 font-bold w-28 min-w-[110px]">
                     {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
                   </th>
 
                   {/* STRIKE Column */}
-                  <th className="py-2 px-2 text-center bg-slate-900 text-white font-bold border-r border-slate-800 w-36 min-w-[144px] max-w-[144px]">
+                  <th className="py-2 px-2 text-center bg-slate-900 text-white font-bold border-r border-slate-800 w-24 min-w-[96px] max-w-[100px]">
                     Strike Price
                   </th>
 
                   {/* PE Columns */}
-                  <th className="py-2 px-3 text-left border-r border-slate-800 text-rose-300 font-bold">
+                  <th className="py-2 px-2 text-left border-r border-slate-800 text-rose-300 font-bold w-28 min-w-[110px]">
                     {chainData?.is_market_open ? 'LTP (₹)' : 'Close LTP (₹)'}
                   </th>
                   <th className="py-2 px-2 text-left">Change</th>
@@ -1090,14 +1100,20 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                         isAtm ? 'ring-2 ring-indigo-400 bg-indigo-950/40 shadow-lg shadow-indigo-500/20 z-10 relative' : ''
                       }`}
                     >
-                      {/* CE: OI & OI Change */}
-                      <td className={`py-1.5 px-3 text-right ${ceItmBg}`}>
-                        <span className="text-slate-300 font-semibold">{formatOi(ce.oi)}</span>
-                        {ce.oi_change !== 0 && (
-                          <span className={`block text-[9px] font-bold ${ce.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {ce.oi_change > 0 ? '+' : ''}{formatOi(ce.oi_change)}
-                          </span>
-                        )}
+                      {/* CE: OI & OI Change (with institutional depth heatmap bar) */}
+                      <td className={`py-1.5 px-3 text-right relative overflow-hidden ${ceItmBg}`}>
+                        <div 
+                          className="absolute inset-y-0 right-0 bg-emerald-500/10 pointer-events-none transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.round(((ce.oi || 0) / maxOi) * 100))}%` }}
+                        />
+                        <div className="relative z-10">
+                          <span className="text-slate-200 font-semibold">{formatOi(ce.oi)}</span>
+                          {ce.oi_change !== 0 && (
+                            <span className={`block text-[9px] font-bold ${ce.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {ce.oi_change > 0 ? '+' : ''}{formatOi(ce.oi_change)}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* CE: Volume */}
@@ -1125,89 +1141,101 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                         </span>
                       </td>
 
-                      {/* CE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
+                      {/* CE: LTP (With Sensibull-style clean Buy/Sell hover buttons on left, Price on right) */}
                       <td 
-                        onClick={() => openChartModal(row, 'CE')}
-                        className={`py-1.5 px-3 text-right font-black text-xs text-emerald-300 border-r border-slate-800 cursor-pointer hover:bg-emerald-950/60 hover:underline transition-all ${ceItmBg}`}
-                        title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
+                        className={`py-1.5 px-2 text-right border-r border-slate-800 w-28 min-w-[110px] transition-all relative ${ceItmBg}`}
                       >
-                        <div className="flex items-center justify-end gap-1">
-                          <span>₹{ce.ltp}</span>
-                          <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-emerald-400 transition-opacity" />
-                        </div>
-                      </td>
-
-                      {/* STRIKE PRICE (CENTER) - Buy & Sell Action Buttons on Hover */}
-                      <td 
-                        className={`py-1 px-1 text-center border-r border-slate-800 transition-colors select-none w-36 min-w-[144px] max-w-[144px] ${
-                          isAtm 
-                            ? 'bg-indigo-600 text-white font-black shadow-md' 
-                            : 'bg-slate-900 text-white font-extrabold'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full h-6 px-1">
-                          {/* CE Quick Trade Buttons (LEFT of Strike - Calls) */}
-                          <div className={`w-11 flex items-center gap-0.5 justify-start shrink-0 transition-opacity duration-150 ${hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        <div className="flex items-center justify-between gap-1">
+                          {/* Quick Trade Pill on Call side */}
+                          <div 
+                            className={`flex items-center gap-0.5 transition-opacity duration-150 ${
+                              hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                            }`}
+                          >
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
-                              className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
-                              title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                              className="w-5 h-4.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-95 cursor-pointer"
+                              title={`BUY ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
                             >
                               B
                             </button>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'CE', 'SELL')}
-                              className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
-                              title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
+                              className="w-5 h-4.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-95 cursor-pointer"
+                              title={`SELL ${selectedSymbol} ₹${strike} Call (CE) @ ₹${ce.ltp}`}
                             >
                               S
                             </button>
                           </div>
 
-                          {/* Strike Price & Real-Time Chart Link */}
+                          {/* CE LTP Clickable to Open Candlestick Chart */}
                           <div 
-                            onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
-                            className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-0.5"
-                            title={`Click to open Strike ₹${strike} Real-Time Candlestick Chart`}
+                            onClick={() => openChartModal(row, 'CE')}
+                            className="flex items-center gap-1 cursor-pointer font-mono font-bold text-xs text-emerald-300 hover:text-emerald-200 hover:underline"
+                            title={`Open ${selectedSymbol} ₹${strike} CE Real-Time Candlestick Chart`}
                           >
-                            <span className="font-mono font-bold text-xs">{strike.toLocaleString('en-IN')}</span>
-                            {isAtm && (
-                              <span className="px-1 py-0.2 rounded bg-white text-indigo-900 text-[8px] font-black uppercase">
-                                ATM
-                              </span>
-                            )}
-                            <BarChart2 className="w-2.5 h-2.5 opacity-40 hover:opacity-100 text-indigo-300 transition-opacity" />
+                            <span>₹{ce.ltp !== undefined ? ce.ltp : '—'}</span>
+                            <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-emerald-400 transition-opacity" />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* STRIKE PRICE (CENTER) - Pure, Clean, Beautiful Monospace */}
+                      <td 
+                        onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
+                        className={`py-1.5 px-2 text-center border-r border-slate-800 transition-colors select-none cursor-pointer w-24 min-w-[96px] max-w-[100px] font-mono ${
+                          isAtm 
+                            ? 'bg-gradient-to-r from-indigo-950 via-indigo-700 to-indigo-950 text-white font-black ring-1 ring-indigo-400 shadow-md' 
+                            : 'bg-slate-900/90 hover:bg-slate-850 text-slate-100 font-bold hover:text-indigo-200'
+                        }`}
+                        title={`Click to open Strike ₹${strike} Candlestick Chart`}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-xs font-bold">{strike.toLocaleString('en-IN')}</span>
+                          {isAtm && (
+                            <span className="px-1 py-0.2 rounded-full bg-white text-indigo-950 text-[8px] font-black uppercase shadow animate-pulse">
+                              ATM
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* PE: LTP (With Price on left, Sensibull-style clean Buy/Sell hover buttons on right) */}
+                      <td 
+                        className={`py-1.5 px-2 text-left border-r border-slate-800 w-28 min-w-[110px] transition-all relative ${peItmBg}`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          {/* PE LTP Clickable to Open Candlestick Chart */}
+                          <div 
+                            onClick={() => openChartModal(row, 'PE')}
+                            className="flex items-center gap-1 cursor-pointer font-mono font-bold text-xs text-rose-300 hover:text-rose-200 hover:underline"
+                            title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
+                          >
+                            <span>₹{pe.ltp !== undefined ? pe.ltp : '—'}</span>
+                            <BarChart2 className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100 text-rose-400 transition-opacity" />
                           </div>
 
-                          {/* PE Quick Trade Buttons (RIGHT of Strike - Puts) */}
-                          <div className={`w-11 flex items-center gap-0.5 justify-end shrink-0 transition-opacity duration-150 ${hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                          {/* Quick Trade Pill on Put side */}
+                          <div 
+                            className={`flex items-center gap-0.5 transition-opacity duration-150 ${
+                              hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                            }`}
+                          >
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
-                              className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
-                              title={`Paper Trade: BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                              className="w-5 h-4.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-95 cursor-pointer"
+                              title={`BUY ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
                             >
                               B
                             </button>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'PE', 'SELL')}
-                              className="w-5 h-5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-90 cursor-pointer"
-                              title={`Paper Trade: SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
+                              className="w-5 h-4.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-black text-[9px] flex items-center justify-center shadow-md shadow-rose-500/40 active:scale-95 cursor-pointer"
+                              title={`SELL ${selectedSymbol} ₹${strike} Put (PE) @ ₹${pe.ltp}`}
                             >
                               S
                             </button>
                           </div>
-                        </div>
-                      </td>
-
-                      {/* PE: LTP (Clickable -> Opens Real-Time 0-Delay Candlestick Chart) */}
-                      <td 
-                        onClick={() => openChartModal(row, 'PE')}
-                        className={`py-1.5 px-3 text-left font-black text-xs text-rose-300 border-r border-slate-800 cursor-pointer hover:bg-rose-950/60 hover:underline transition-all ${peItmBg}`}
-                        title={`Open ${selectedSymbol} ₹${strike} PE Real-Time Candlestick Chart`}
-                      >
-                        <div className="flex items-center justify-start gap-1">
-                          <span>₹{pe.ltp}</span>
-                          <BarChart2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 transition-opacity" />
                         </div>
                       </td>
 
@@ -1236,14 +1264,20 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                         {formatOi(pe.volume)}
                       </td>
 
-                      {/* PE: OI & OI Change */}
-                      <td className={`py-1.5 px-3 text-left ${peItmBg}`}>
-                        <span className="text-slate-300 font-semibold">{formatOi(pe.oi)}</span>
-                        {pe.oi_change !== 0 && (
-                          <span className={`block text-[9px] font-bold ${pe.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {pe.oi_change > 0 ? '+' : ''}{formatOi(pe.oi_change)}
-                          </span>
-                        )}
+                      {/* PE: OI & OI Change (with institutional depth heatmap bar) */}
+                      <td className={`py-1.5 px-3 text-left relative overflow-hidden ${peItmBg}`}>
+                        <div 
+                          className="absolute inset-y-0 left-0 bg-rose-500/10 pointer-events-none transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.round(((pe.oi || 0) / maxOi) * 100))}%` }}
+                        />
+                        <div className="relative z-10">
+                          <span className="text-slate-200 font-semibold">{formatOi(pe.oi)}</span>
+                          {pe.oi_change !== 0 && (
+                            <span className={`block text-[9px] font-bold ${pe.oi_change > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {pe.oi_change > 0 ? '+' : ''}{formatOi(pe.oi_change)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
