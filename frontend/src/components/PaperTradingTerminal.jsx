@@ -1192,8 +1192,8 @@ export default function PaperTradingTerminal({
 
                                   <div className="flex items-center gap-2.5 font-mono text-xs">
                                     <div>
-                                      <span className="text-slate-400 text-[10px] block text-right">Entry $\rightarrow$ LTP</span>
-                                      <span className="text-slate-300 font-semibold">₹{formatPrice(leg.entryPrice)} $\rightarrow$ ₹{formatPrice(leg.currentLtp)}</span>
+                                      <span className="text-slate-300 font-semibold text-xs block text-right">₹{formatPrice(leg.currentLtp)}</span>
+                                      <span className="text-slate-500 text-[10px] block text-right font-medium">Entry ₹{formatPrice(leg.entryPrice)}</span>
                                     </div>
 
                                     <div className="text-right min-w-[65px]">
@@ -1368,7 +1368,7 @@ export default function PaperTradingTerminal({
                                         <span className="text-slate-400">({cl.lots}L)</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <span className="text-slate-400">₹{formatPrice(cl.entryPrice)} $\rightarrow$ ₹{formatPrice(cl.exitPrice)}</span>
+                                        <span className="text-slate-400">₹{formatPrice(cl.entryPrice)} → ₹{formatPrice(cl.exitPrice)}</span>
                                         <span className={`font-bold ${cl.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                           {cl.pnl >= 0 ? '+' : ''}₹{cl.pnl?.toLocaleString('en-IN')}
                                         </span>
