@@ -148,22 +148,51 @@ export default function PaperTradingTerminal({
     return currentSpot;
   }, [strategyAssetSymbol, spotPricesMap, activeLegs, currentSpot]);
 
-  // Compute live strategy metrics for builder using strategy's own asset spot and builderRealizedPnl
+  // Find matching deployed trade for this symbol or editing session to automatically merge booked profit/loss into builder
+  const matchedDeployedTrade = useMemo(() => {
+    if (editingTradeId) {
+      const found = deployedTrades.find(t => t.id === editingTradeId);
+      if (found) return found;
+    }
+    // If user is working on legs of a symbol that already has an active deployed trade
+    if (strategyAssetSymbol) {
+      const bySym = deployedTrades.find(t => (t.symbol || '').toUpperCase() === strategyAssetSymbol.toUpperCase());
+      if (bySym) return bySym;
+    }
+    if (deployedTrades.length === 1) {
+      return deployedTrades[0];
+    }
+    return null;
+  }, [editingTradeId, deployedTrades, strategyAssetSymbol]);
+
+  const effectiveBuilderRealizedPnl = useMemo(() => {
+    if (builderRealizedPnl !== 0) return builderRealizedPnl;
+    if (matchedDeployedTrade && matchedDeployedTrade.realizedPnl) {
+      return matchedDeployedTrade.realizedPnl;
+    }
+    return 0;
+  }, [builderRealizedPnl, matchedDeployedTrade]);
+
+  // Compute live strategy metrics for builder using strategy's own asset spot and effectiveBuilderRealizedPnl
   const metrics = useMemo(() => {
-    return calculateRiskMetrics(enrichedLegs, strategyAssetSpot, builderRealizedPnl);
-  }, [enrichedLegs, strategyAssetSpot, builderRealizedPnl]);
+    return calculateRiskMetrics(enrichedLegs, strategyAssetSpot, effectiveBuilderRealizedPnl);
+  }, [enrichedLegs, strategyAssetSpot, effectiveBuilderRealizedPnl]);
 
   const requiredMargin = useMemo(() => {
     return calculateRequiredMargin(enrichedLegs, strategyAssetSpot, strategyAssetSymbol);
   }, [enrichedLegs, strategyAssetSpot, strategyAssetSymbol]);
 
   const pop = useMemo(() => {
-    return calculateProbabilityOfProfit(enrichedLegs, strategyAssetSpot, 15, 3, builderRealizedPnl);
-  }, [enrichedLegs, strategyAssetSpot, builderRealizedPnl]);
+    return calculateProbabilityOfProfit(enrichedLegs, strategyAssetSpot, 15, 3, effectiveBuilderRealizedPnl);
+  }, [enrichedLegs, strategyAssetSpot, effectiveBuilderRealizedPnl]);
+
+  const unrealizedBuilderPnl = useMemo(() => {
+    return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0);
+  }, [enrichedLegs]);
 
   const liveStrategyPnl = useMemo(() => {
-    return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0) + (builderRealizedPnl || 0);
-  }, [enrichedLegs, builderRealizedPnl]);
+    return unrealizedBuilderPnl + (effectiveBuilderRealizedPnl || 0);
+  }, [unrealizedBuilderPnl, effectiveBuilderRealizedPnl]);
 
   // Calculate live PnL and dynamic metrics for deployed paper portfolio across ALL assets (incorporating realized PnL)
   const deployedWithLivePnl = useMemo(() => {
@@ -302,31 +331,33 @@ export default function PaperTradingTerminal({
   // Deploy paper trade into active portfolio (or update existing if editing)
   const handleDeployTrade = () => {
     if (!activeLegs || activeLegs.length === 0) return;
-    const name = strategyName.trim() || `${strategyAssetSymbol} ${activeLegs.length}-Leg Trade`;
+    const targetTradeId = editingTradeId || matchedDeployedTrade?.id || `PT-${Date.now()}`;
+    const name = strategyName.trim() || matchedDeployedTrade?.name || `${strategyAssetSymbol} ${activeLegs.length}-Leg Trade`;
+    const targetClosed = (builderClosedLegs && builderClosedLegs.length > 0) ? builderClosedLegs : (matchedDeployedTrade?.closedLegs || []);
 
     const newTrade = {
-      id: editingTradeId || `PT-${Date.now()}`,
+      id: targetTradeId,
       name,
       symbol: strategyAssetSymbol,
       expiry,
       spotAtEntry: strategyAssetSpot,
-      deployedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      deployedAt: matchedDeployedTrade?.deployedAt || new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       legs: enrichedLegs.map(l => ({ ...l })),
       requiredMargin,
       maxProfit: metrics.maxProfit,
       maxLoss: metrics.maxLoss,
       pop,
-      realizedPnl: builderRealizedPnl || 0,
-      closedLegs: builderClosedLegs || [],
+      realizedPnl: effectiveBuilderRealizedPnl || 0,
+      closedLegs: targetClosed,
       status: 'OPEN'
     };
 
     setDeployedTrades(prev => {
-      const filtered = editingTradeId ? prev.filter(t => t.id !== editingTradeId) : prev;
+      const filtered = (editingTradeId || matchedDeployedTrade) ? prev.filter(t => t.id !== targetTradeId) : prev;
       return [newTrade, ...filtered];
     });
 
-    setDeployNotification(editingTradeId ? `Position "${name}" updated with ${activeLegs.length} legs!` : `Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
+    setDeployNotification((editingTradeId || matchedDeployedTrade) ? `Position "${name}" updated with ${activeLegs.length} legs!` : `Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
     setTimeout(() => setDeployNotification(null), 4000);
     setActiveTab('deployed');
     setExpandedTradeId(newTrade.id);
@@ -654,15 +685,15 @@ export default function PaperTradingTerminal({
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-900">
           {activeTab === 'builder' ? (
             <div className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 flex flex-col`}>
-              {/* Editing Deployed Trade Alert Banner */}
-              {editingTradeId && (
+              {/* Editing Deployed Trade Alert Banner / Active Position Sync */}
+              {(editingTradeId || (matchedDeployedTrade && effectiveBuilderRealizedPnl !== 0)) && (
                 <div className="bg-indigo-950/80 border border-indigo-500/50 p-2 px-3 rounded-xl flex items-center justify-between text-xs text-indigo-200 shrink-0 shadow-md">
                   <div className="flex items-center gap-2">
                     <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Editing Active Position: <b className="text-white">{strategyName}</b></span>
-                    {builderRealizedPnl !== 0 && (
-                      <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${builderRealizedPnl >= 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950 text-rose-300 border border-rose-500/30'}`}>
-                        Exited P&L: {builderRealizedPnl >= 0 ? '+' : ''}₹{builderRealizedPnl.toLocaleString('en-IN')}
+                    <span>Active Position: <b className="text-white">{strategyName || matchedDeployedTrade?.name}</b></span>
+                    {effectiveBuilderRealizedPnl !== 0 && (
+                      <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${effectiveBuilderRealizedPnl >= 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950 text-rose-300 border border-rose-500/30'}`}>
+                        Booked P&L: {effectiveBuilderRealizedPnl >= 0 ? '+' : ''}₹{effectiveBuilderRealizedPnl.toLocaleString('en-IN')}
                       </span>
                     )}
                   </div>
@@ -670,7 +701,7 @@ export default function PaperTradingTerminal({
                     onClick={handleClearAll}
                     className="text-[10px] text-slate-400 hover:text-white font-semibold cursor-pointer underline"
                   >
-                    Cancel Edit
+                    Clear / New
                   </button>
                 </div>
               )}
@@ -712,14 +743,14 @@ export default function PaperTradingTerminal({
                 {/* 2. Live PnL */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {builderRealizedPnl !== 0 ? 'Total Live P&L (Net)' : 'Live Strategy P&L'}
+                    {effectiveBuilderRealizedPnl !== 0 ? 'Total Live P&L (Net)' : 'Live Strategy P&L'}
                   </span>
                   <span className={`text-xs sm:text-sm font-black font-mono ${liveStrategyPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {liveStrategyPnl >= 0 ? '+' : ''}₹{liveStrategyPnl.toLocaleString('en-IN')}
                   </span>
                   <span className="text-[9px] text-slate-500 block font-mono">
-                    {builderRealizedPnl !== 0
-                      ? `(Active: ${enrichedLegs.reduce((a, l) => a + (l.livePnl || 0), 0) >= 0 ? '+' : ''}₹${enrichedLegs.reduce((a, l) => a + (l.livePnl || 0), 0)} | Exited: ${builderRealizedPnl >= 0 ? '+' : ''}₹${builderRealizedPnl})`
+                    {effectiveBuilderRealizedPnl !== 0
+                      ? `(Unrealized: ${unrealizedBuilderPnl >= 0 ? '+' : ''}₹${unrealizedBuilderPnl} | Booked: ${effectiveBuilderRealizedPnl >= 0 ? '+' : ''}₹${effectiveBuilderRealizedPnl})`
                       : 'Realtime 1s'}
                   </span>
                 </div>
@@ -916,7 +947,7 @@ export default function PaperTradingTerminal({
                     currentSpot={strategyAssetSpot} 
                     symbol={strategyAssetSymbol}
                     height={280} 
-                    realizedPnl={builderRealizedPnl || 0}
+                    realizedPnl={effectiveBuilderRealizedPnl || 0}
                   />
                 </div>
               </div>
@@ -937,7 +968,7 @@ export default function PaperTradingTerminal({
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                  <span>{editingTradeId ? `Update Position (${enrichedLegs.length} Legs)` : `Deploy Paper Trade (${enrichedLegs.length} Legs)`}</span>
+                  <span>{(editingTradeId || matchedDeployedTrade) ? `Update Position (${enrichedLegs.length} Legs)` : `Deploy Paper Trade (${enrichedLegs.length} Legs)`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
