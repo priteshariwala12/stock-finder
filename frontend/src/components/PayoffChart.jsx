@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { generatePayoffCurve, calculateLegPayoff } from '../utils/optionsAnalytics';
-import { RotateCcw, ZoomIn } from 'lucide-react';
+import { RotateCcw, ZoomIn, ZoomOut, Plus, Minus } from 'lucide-react';
 
 export default function PayoffChart({
   legs = [],
@@ -13,7 +13,7 @@ export default function PayoffChart({
   const [dragState, setDragState] = useState(null); // { startSvgX, currentSvgX, isDragging }
   const containerRef = useRef(null);
 
-  // Reset zoom when symbol or active legs change completely
+  // Reset zoom when symbol changes
   useEffect(() => {
     setZoomDomain(null);
   }, [symbol]);
@@ -108,6 +108,35 @@ export default function PayoffChart({
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     return (mouseX / rect.width) * width;
+  };
+
+  // Explicit Zoom In / Out / Reset button handlers
+  const handleZoomIn = (e) => {
+    e?.stopPropagation();
+    const range = upperBound - lowerBound;
+    if (range <= 40) return;
+    const mid = (lowerBound + upperBound) / 2;
+    const newHalfRange = (range * 0.70) / 2;
+    setZoomDomain({
+      lower: Math.round(mid - newHalfRange),
+      upper: Math.round(mid + newHalfRange)
+    });
+  };
+
+  const handleZoomOut = (e) => {
+    e?.stopPropagation();
+    const range = upperBound - lowerBound;
+    const mid = (lowerBound + upperBound) / 2;
+    const newHalfRange = (range * 1.35) / 2;
+    setZoomDomain({
+      lower: Math.round(mid - newHalfRange),
+      upper: Math.round(mid + newHalfRange)
+    });
+  };
+
+  const handleResetZoom = (e) => {
+    e?.stopPropagation();
+    setZoomDomain(null);
   };
 
   // Mouse Down -> Start Drag Zoom
@@ -221,25 +250,36 @@ export default function PayoffChart({
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleDoubleClick}
       className="relative w-full select-none bg-slate-950/80 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group"
-      title="Click and drag horizontally to Zoom in. Double click or click Reset Zoom to restore."
+      title="Click and drag horizontally to Zoom in. Double click or use toolbar buttons to control zoom."
     >
-      {/* Zoom Toolbar & Controls */}
-      <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 pointer-events-auto">
-        {zoomDomain ? (
-          <button
-            onClick={() => setZoomDomain(null)}
-            className="px-2 py-0.5 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 text-white text-[10px] font-bold shadow-md flex items-center gap-1 transition-all cursor-pointer"
-            title="Reset Zoom to full curve"
-          >
-            <RotateCcw className="w-2.5 h-2.5" />
-            <span>Reset Zoom (₹{lowerBound} - ₹{upperBound})</span>
-          </button>
-        ) : (
-          <div className="px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800 text-[9px] text-slate-500 flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-            <ZoomIn className="w-2.5 h-2.5 text-cyan-400" />
-            <span>Drag to Zoom</span>
-          </div>
-        )}
+      {/* Small Zoom Controls Toolbar (Zoom In, Zoom Out, Reset) */}
+      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-slate-900/95 border border-slate-700 rounded-lg p-0.5 shadow-lg backdrop-blur-sm pointer-events-auto">
+        <button
+          onClick={handleZoomIn}
+          className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+          title="Zoom In (+)"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+          title="Zoom Out (-)"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <button
+          onClick={handleResetZoom}
+          className={`p-1 px-1.5 rounded text-[10px] transition-colors flex items-center gap-1 cursor-pointer ${
+            zoomDomain 
+              ? 'bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-sm' 
+              : 'hover:bg-slate-800 text-slate-400 hover:text-white font-semibold'
+          }`}
+          title="Reset Zoom to full range (↺)"
+        >
+          <RotateCcw className="w-2.5 h-2.5" />
+          <span>Reset</span>
+        </button>
       </div>
 
       <svg

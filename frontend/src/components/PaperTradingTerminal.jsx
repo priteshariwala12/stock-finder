@@ -25,6 +25,7 @@ export default function PaperTradingTerminal({
   expiry = '',
   lotSize = 50,
   quotesMap = {},
+  spotPricesMap = {},
   isDocked = false
 }) {
   const [activeTab, setActiveTab] = useState(() => {
@@ -91,20 +92,27 @@ export default function PaperTradingTerminal({
   // Enrich active builder legs with live LTP from quotesMap if available
   const enrichedLegs = useMemo(() => {
     return activeLegs.map(leg => {
-      const key = `${leg.strike}_${leg.type}`;
-      const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (leg.entryPrice || 100);
+      const legSym = (leg.symbol || symbol || 'NIFTY').toUpperCase();
+      const specificKey = `${legSym}_${leg.strike}_${leg.type}`;
+      const fallbackKey = `${leg.strike}_${leg.type}`;
+      const liveLtp = quotesMap[specificKey] !== undefined 
+        ? quotesMap[specificKey] 
+        : quotesMap[fallbackKey] !== undefined 
+          ? quotesMap[fallbackKey] 
+          : (leg.entryPrice || 100);
       const effectiveEntry = leg.entryPrice !== undefined && leg.entryPrice !== null ? parseFloat(leg.entryPrice) || 0 : liveLtp;
       const totalQty = (leg.lots || 1) * (leg.lotSize || lotSize || 50);
       const isBuy = leg.action === 'BUY';
       const pnl = isBuy ? (liveLtp - effectiveEntry) * totalQty : (effectiveEntry - liveLtp) * totalQty;
       return {
         ...leg,
+        symbol: legSym,
         entryPrice: effectiveEntry,
         currentLtp: liveLtp,
         livePnl: Math.round(pnl)
       };
     });
-  }, [activeLegs, quotesMap, lotSize]);
+  }, [activeLegs, quotesMap, lotSize, symbol]);
 
   // Compute live strategy metrics for builder
   const metrics = useMemo(() => {
@@ -123,27 +131,37 @@ export default function PaperTradingTerminal({
     return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0);
   }, [enrichedLegs]);
 
-  // Calculate live PnL for deployed paper portfolio
+  // Calculate live PnL for deployed paper portfolio across ALL assets
   const deployedWithLivePnl = useMemo(() => {
     return deployedTrades.map(trade => {
       let openPnl = 0;
+      const tradeSym = (trade.symbol || symbol || 'NIFTY').toUpperCase();
+      const tradeSpot = spotPricesMap[tradeSym] || trade.spotAtEntry || currentSpot;
       const enrichedTradeLegs = (trade.legs || []).map(leg => {
-        const key = `${leg.strike}_${leg.type}`;
-        const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (leg.currentLtp || leg.entryPrice);
+        const legSym = (leg.symbol || tradeSym).toUpperCase();
+        const specificKey = `${legSym}_${leg.strike}_${leg.type}`;
+        const fallbackKey = `${leg.strike}_${leg.type}`;
+        const liveLtp = quotesMap[specificKey] !== undefined 
+          ? quotesMap[specificKey] 
+          : quotesMap[fallbackKey] !== undefined 
+            ? quotesMap[fallbackKey] 
+            : (leg.currentLtp || leg.entryPrice);
         const qty = (leg.lots || 1) * (leg.lotSize || 50);
         const pnl = leg.action === 'BUY' ? (liveLtp - leg.entryPrice) * qty : (leg.entryPrice - liveLtp) * qty;
         openPnl += pnl;
-        return { ...leg, currentLtp: liveLtp, livePnl: Math.round(pnl) };
+        return { ...leg, symbol: legSym, currentLtp: liveLtp, livePnl: Math.round(pnl) };
       });
       const realized = trade.realizedPnl || 0;
       return {
         ...trade,
+        symbol: tradeSym,
+        currentSpot: tradeSpot,
         legs: enrichedTradeLegs,
         openPnl: Math.round(openPnl),
         livePnl: Math.round(openPnl + realized)
       };
     });
-  }, [deployedTrades, quotesMap]);
+  }, [deployedTrades, quotesMap, spotPricesMap, symbol, currentSpot]);
 
   // Handlers for active builder legs
   const handleUpdateLots = (index, delta) => {
@@ -807,11 +825,11 @@ export default function PaperTradingTerminal({
                                   <PieChart className="w-3.5 h-3.5 text-cyan-400" />
                                   <span>Live Strategy Payoff Curve (Drag to Zoom)</span>
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400">Current Spot: ₹{currentSpot.toLocaleString('en-IN')}</span>
+                                <span className="text-[10px] font-mono text-slate-400">Current Spot: ₹{(trade.currentSpot || currentSpot).toLocaleString('en-IN')}</span>
                               </div>
                               <PayoffChart 
                                 legs={trade.legs} 
-                                currentSpot={currentSpot} 
+                                currentSpot={trade.currentSpot || currentSpot} 
                                 symbol={trade.symbol} 
                                 height={200} 
                               />

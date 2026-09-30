@@ -468,17 +468,111 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Live quotes map for real-time PnL in Paper Trading Terminal
-  const quotesMap = useMemo(() => {
-    const map = {};
-    if (chainData?.strikes) {
-      for (const s of chainData.strikes) {
-        if (s.ce?.ltp !== undefined) map[`${s.strike}_CE`] = s.ce.ltp;
-        if (s.pe?.ltp !== undefined) map[`${s.strike}_PE`] = s.pe.ltp;
+  // Multi-asset quotes and spot prices maps for real-time PnL across all deployed assets
+  const [multiAssetQuotesMap, setMultiAssetQuotesMap] = useState({});
+  const [spotPricesMap, setSpotPricesMap] = useState({});
+
+  // Sync quotes and spot price when active option chain data arrives
+  useEffect(() => {
+    if (!chainData) return;
+    const curSym = (chainData.symbol || selectedSymbol || '').toUpperCase();
+    if (!curSym) return;
+
+    setMultiAssetQuotesMap(prev => {
+      const next = { ...prev };
+      if (chainData.strikes) {
+        for (const s of chainData.strikes) {
+          if (s.ce?.ltp !== undefined) {
+            next[`${curSym}_${s.strike}_CE`] = s.ce.ltp;
+            next[`${s.strike}_CE`] = s.ce.ltp;
+          }
+          if (s.pe?.ltp !== undefined) {
+            next[`${curSym}_${s.strike}_PE`] = s.pe.ltp;
+            next[`${s.strike}_PE`] = s.pe.ltp;
+          }
+        }
       }
+      return next;
+    });
+
+    if (chainData.underlying_price) {
+      setSpotPricesMap(prev => ({
+        ...prev,
+        [curSym]: chainData.underlying_price
+      }));
     }
-    return map;
-  }, [chainData]);
+  }, [chainData, selectedSymbol]);
+
+  // Continuous background quote polling for all deployed assets (SENSEX, BANKNIFTY, NIFTY, Stocks)
+  // Ensures calculation NEVER stops even when looking at a different asset tab
+  useEffect(() => {
+    let isCancelled = false;
+
+    const pollBackgroundAssets = async () => {
+      try {
+        const saved = localStorage.getItem('stock_finder_paper_trades');
+        const deployedTrades = saved ? JSON.parse(saved) : [];
+        const requiredSymbols = new Set();
+
+        for (const trade of deployedTrades) {
+          if (trade.symbol) requiredSymbols.add(trade.symbol.toUpperCase());
+          for (const leg of trade.legs || []) {
+            if (leg.symbol) requiredSymbols.add(leg.symbol.toUpperCase());
+          }
+        }
+
+        for (const leg of paperLegs) {
+          if (leg.symbol) requiredSymbols.add(leg.symbol.toUpperCase());
+        }
+
+        const curSym = (selectedSymbol || '').toUpperCase();
+        const bgSymbols = Array.from(requiredSymbols).filter(s => s && s !== curSym);
+
+        if (bgSymbols.length === 0) return;
+
+        // Fetch each background asset's live option chain snapshot concurrently
+        await Promise.all(bgSymbols.map(async (sym) => {
+          try {
+            const res = await fetch(`/api/option-chain/data?symbol=${encodeURIComponent(sym)}&force=true&_t=${Date.now()}`, {
+              cache: 'no-store'
+            });
+            if (res.ok && !isCancelled) {
+              const bgData = await res.json();
+              if (bgData?.strikes) {
+                setMultiAssetQuotesMap(prev => {
+                  const next = { ...prev };
+                  for (const s of bgData.strikes) {
+                    if (s.ce?.ltp !== undefined) next[`${sym}_${s.strike}_CE`] = s.ce.ltp;
+                    if (s.pe?.ltp !== undefined) next[`${sym}_${s.strike}_PE`] = s.pe.ltp;
+                  }
+                  return next;
+                });
+              }
+              if (bgData?.underlying_price) {
+                setSpotPricesMap(prev => ({
+                  ...prev,
+                  [sym]: bgData.underlying_price
+                }));
+              }
+            }
+          } catch (e) {
+            // Ignore temporary background network blips
+          }
+        }));
+      } catch (err) {
+        console.error('Background multi-asset polling error:', err);
+      }
+    };
+
+    pollBackgroundAssets();
+    const intervalMs = Math.max(1.5, (refreshInterval || 1)) * 1000;
+    const intervalId = setInterval(pollBackgroundAssets, intervalMs);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [paperLegs, selectedSymbol, autoRefresh, refreshInterval]);
 
   // Quick trade handler when clicking B (Buy) or S (Sell) near strike
   const handleQuickTrade = (e, strike, type, action) => {
@@ -489,7 +583,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
     const currentLotSize = chainData?.lot_size || (selectedSymbol.includes('BANK') ? 30 : selectedSymbol.includes('SENSEX') ? 20 : 50);
 
     setPaperLegs(prev => {
-      const existingIndex = prev.findIndex(l => l.strike === strike && l.type === type && l.action === action);
+      const existingIndex = prev.findIndex(l => l.strike === strike && l.type === type && l.action === action && l.symbol === selectedSymbol);
       if (existingIndex >= 0) {
         const updated = [...prev];
         updated[existingIndex] = { ...updated[existingIndex], lots: (updated[existingIndex].lots || 1) + 1 };
@@ -498,7 +592,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
       return [
         ...prev,
         {
-          id: `${strike}_${type}_${action}_${Date.now()}`,
+          id: `${selectedSymbol}_${strike}_${type}_${action}_${Date.now()}`,
           symbol: selectedSymbol,
           strike,
           type,
@@ -1207,7 +1301,8 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
               symbol={selectedSymbol}
               expiry={chainData?.selected_expiry || selectedExpiry}
               lotSize={chainData?.lot_size || 50}
-              quotesMap={quotesMap}
+              quotesMap={multiAssetQuotesMap}
+              spotPricesMap={spotPricesMap}
               isDocked={true}
             />
           </div>
