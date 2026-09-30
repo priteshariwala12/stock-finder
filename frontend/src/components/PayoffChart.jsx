@@ -6,7 +6,8 @@ export default function PayoffChart({
   legs = [],
   currentSpot = 23500,
   height = 280,
-  symbol = 'NIFTY'
+  symbol = 'NIFTY',
+  realizedPnl = 0
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [zoomDomain, setZoomDomain] = useState(null); // { lower, upper }
@@ -31,10 +32,10 @@ export default function PayoffChart({
     setZoomDomain(null);
   }, [symbol]);
 
-  // Base curve calculation (auto-scaled) with both Expiry and T+0 curves
+  // Base curve calculation (auto-scaled) with both Expiry and T+0 curves + realized PnL offset
   const baseCurve = useMemo(() => {
-    return generatePayoffCurve(legs, effectiveSpot, 0.20, 200, 3);
-  }, [legs, effectiveSpot]);
+    return generatePayoffCurve(legs, effectiveSpot, 0.20, 200, 3, realizedPnl);
+  }, [legs, effectiveSpot, realizedPnl]);
 
   // Default / Reset range is strictly +/- 2% from centre spot (user can zoom out to infinity)
   const baseLower = Math.round(effectiveSpot * 0.98);
@@ -46,15 +47,15 @@ export default function PayoffChart({
 
   // Recalculate 140 fine-grained points for current visible bound (both Expiry & T+0)
   const points = useMemo(() => {
-    if (!legs || legs.length === 0 || lowerBound >= upperBound) return [];
+    if ((!legs || legs.length === 0) && !realizedPnl) return [];
     const pts = [];
     const steps = 140;
     const stepSize = (upperBound - lowerBound) / steps;
     for (let i = 0; i <= steps; i++) {
       const spot = lowerBound + i * stepSize;
-      let pnl = 0;
-      let t0Pnl = 0;
-      for (const leg of legs) {
+      let pnl = realizedPnl || 0;
+      let t0Pnl = realizedPnl || 0;
+      for (const leg of (legs || [])) {
         pnl += calculateLegPayoff(leg, spot);
         t0Pnl += calculateLegT0Payoff(leg, spot, effectiveSpot, 3);
       }
@@ -65,12 +66,11 @@ export default function PayoffChart({
       });
     }
     return pts;
-  }, [legs, effectiveSpot, lowerBound, upperBound]);
+  }, [legs, effectiveSpot, lowerBound, upperBound, realizedPnl]);
 
-  // Actual Strategy Live P&L at current spot
+  // Actual Strategy Live P&L at current spot (including realized P&L from exited legs)
   const liveStrategyPnl = useMemo(() => {
-    if (!legs || legs.length === 0) return 0;
-    return legs.reduce((acc, leg) => {
+    const open = (legs || []).reduce((acc, leg) => {
       const totalQty = Math.max(1, leg.lots || 1) * Math.max(1, leg.lotSize || 50);
       const isBuy = leg.action === 'BUY';
       const ltp = (leg.currentLtp !== undefined && leg.currentLtp !== null && !isNaN(parseFloat(leg.currentLtp)))
@@ -80,7 +80,8 @@ export default function PayoffChart({
       const pnl = isBuy ? (ltp - entry) * totalQty : (entry - ltp) * totalQty;
       return acc + pnl;
     }, 0);
-  }, [legs]);
+    return open + (realizedPnl || 0);
+  }, [legs, realizedPnl]);
 
   // Aggregate strategy portfolio Greeks (Delta, Gamma, Theta, Vega)
   const strategyGreeks = useMemo(() => {

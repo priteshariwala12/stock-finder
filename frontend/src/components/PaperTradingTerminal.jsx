@@ -56,6 +56,8 @@ export default function PaperTradingTerminal({
   const [lotMultiplier, setLotMultiplier] = useState(1);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [expandedTradeId, setExpandedTradeId] = useState(null);
+  const [addStrikeFormTradeId, setAddStrikeFormTradeId] = useState(null);
+  const [newStrikeData, setNewStrikeData] = useState({ strike: '', type: 'CE', action: 'SELL', lots: 1, entryPrice: '' });
 
   const [savedStrategies, setSavedStrategies] = useState(() => {
     try {
@@ -160,7 +162,7 @@ export default function PaperTradingTerminal({
     return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0);
   }, [enrichedLegs]);
 
-  // Calculate live PnL for deployed paper portfolio across ALL assets
+  // Calculate live PnL and dynamic metrics for deployed paper portfolio across ALL assets (incorporating realized PnL)
   const deployedWithLivePnl = useMemo(() => {
     return deployedTrades.map(trade => {
       let openPnl = 0;
@@ -181,13 +183,21 @@ export default function PaperTradingTerminal({
         return { ...leg, symbol: legSym, currentLtp: liveLtp, livePnl: Math.round(pnl) };
       });
       const realized = trade.realizedPnl || 0;
+      const tradeMetrics = calculateRiskMetrics(enrichedTradeLegs, tradeSpot, realized);
+      const tradeMargin = calculateRequiredMargin(enrichedTradeLegs, tradeSpot, tradeSym);
+      const tradePop = calculateProbabilityOfProfit(enrichedTradeLegs, tradeSpot, 15, 3);
+
       return {
         ...trade,
         symbol: tradeSym,
         currentSpot: tradeSpot,
         legs: enrichedTradeLegs,
         openPnl: Math.round(openPnl),
-        livePnl: Math.round(openPnl + realized)
+        livePnl: Math.round(openPnl + realized),
+        maxProfit: tradeMetrics.maxProfit,
+        maxLoss: tradeMetrics.maxLoss,
+        requiredMargin: tradeMargin,
+        pop: tradePop
       };
     });
   }, [deployedTrades, quotesMap, spotPricesMap, symbol, currentSpot]);
@@ -357,6 +367,96 @@ export default function PaperTradingTerminal({
         };
       }).filter(trade => trade.legs.length > 0);
     });
+  };
+
+  // Exit / Square Off Individual CE / PE Leg from a Deployed Position
+  const handleExitIndividualLeg = (tradeId, legIndex) => {
+    setDeployedTrades(prevTrades => {
+      return prevTrades.map(trade => {
+        if (trade.id !== tradeId) return trade;
+        const currentLeg = trade.legs[legIndex];
+        if (!currentLeg) return trade;
+
+        const key = `${currentLeg.strike}_${currentLeg.type}`;
+        const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (currentLeg.currentLtp || currentLeg.entryPrice);
+        const qty = (currentLeg.lots || 1) * (currentLeg.lotSize || 50);
+        const bookedPnl = currentLeg.action === 'BUY'
+          ? (liveLtp - currentLeg.entryPrice) * qty
+          : (currentLeg.entryPrice - liveLtp) * qty;
+
+        const updatedLegs = trade.legs.filter((_, idx) => idx !== legIndex);
+        const closedRecord = {
+          ...currentLeg,
+          exitPrice: liveLtp,
+          pnl: Math.round(bookedPnl),
+          closedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        };
+        const closedLegs = [...(trade.closedLegs || []), closedRecord];
+        const newRealized = Math.round((trade.realizedPnl || 0) + bookedPnl);
+
+        setDeployNotification(`Exited ${currentLeg.action} ₹${currentLeg.strike} ${currentLeg.type}! Realized P&L: ${bookedPnl >= 0 ? '+' : ''}₹${Math.round(bookedPnl)}`);
+        setTimeout(() => setDeployNotification(null), 4000);
+
+        return {
+          ...trade,
+          legs: updatedLegs,
+          closedLegs,
+          realizedPnl: newRealized
+        };
+      });
+    });
+  };
+
+  // Add a new Strike / Roll leg into an active deployed trade
+  const handleAddStrikeToDeployedTrade = (tradeId) => {
+    const strikeNum = parseFloat(newStrikeData.strike);
+    if (!strikeNum || isNaN(strikeNum)) {
+      alert('Please enter a valid strike price');
+      return;
+    }
+    const trade = deployedTrades.find(t => t.id === tradeId);
+    if (!trade) return;
+
+    const sym = (trade.symbol || symbol || 'NIFTY').toUpperCase();
+    const specificKey = `${sym}_${strikeNum}_${newStrikeData.type}`;
+    const fallbackKey = `${strikeNum}_${newStrikeData.type}`;
+    const ltp = quotesMap[specificKey] !== undefined 
+      ? quotesMap[specificKey] 
+      : quotesMap[fallbackKey] !== undefined 
+        ? quotesMap[fallbackKey] 
+        : (parseFloat(newStrikeData.entryPrice) || 100);
+
+    const effectiveEntry = newStrikeData.entryPrice !== '' && !isNaN(parseFloat(newStrikeData.entryPrice))
+      ? parseFloat(newStrikeData.entryPrice)
+      : ltp;
+
+    const lotSizeVal = trade.legs[0]?.lotSize || lotSize || 50;
+
+    const newLeg = {
+      strike: strikeNum,
+      type: newStrikeData.type,
+      action: newStrikeData.action,
+      lots: Math.max(1, parseInt(newStrikeData.lots, 10) || 1),
+      lotSize: lotSizeVal,
+      entryPrice: effectiveEntry,
+      currentLtp: ltp,
+      symbol: sym
+    };
+
+    setDeployedTrades(prevTrades => {
+      return prevTrades.map(t => {
+        if (t.id !== tradeId) return t;
+        return {
+          ...t,
+          legs: [...t.legs, newLeg]
+        };
+      });
+    });
+
+    setDeployNotification(`Added ₹${strikeNum} ${newStrikeData.type} to ${trade.name}! Position shifted.`);
+    setTimeout(() => setDeployNotification(null), 4000);
+    setAddStrikeFormTradeId(null);
+    setNewStrikeData({ strike: '', type: 'CE', action: 'SELL', lots: 1, entryPrice: '' });
   };
 
   // Square off deployed position completely
@@ -916,22 +1016,31 @@ export default function PaperTradingTerminal({
                               <div className="flex items-center justify-between mb-1.5 px-1">
                                 <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
                                   <PieChart className="w-3.5 h-3.5 text-cyan-400" />
-                                  <span>Live Strategy Payoff Curve (Drag to Zoom)</span>
+                                  <span>Live Strategy Payoff Curve (Merged with Realized P&L)</span>
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400">Current Spot: ₹{(trade.currentSpot || currentSpot).toLocaleString('en-IN')}</span>
+                                <div className="flex items-center gap-2 font-mono text-[10px]">
+                                  <span className="text-slate-400">Spot: ₹{(trade.currentSpot || currentSpot).toLocaleString('en-IN')}</span>
+                                  {trade.realizedPnl !== 0 && (
+                                    <span className={`px-1.5 py-0.2 rounded ${trade.realizedPnl >= 0 ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950/60 text-rose-300 border border-rose-500/30'}`}>
+                                      Locked: {trade.realizedPnl >= 0 ? '+' : ''}₹{trade.realizedPnl?.toLocaleString('en-IN')}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <PayoffChart 
                                 legs={trade.legs} 
                                 currentSpot={trade.currentSpot || currentSpot} 
                                 symbol={trade.symbol} 
-                                height={200} 
+                                height={210}
+                                realizedPnl={trade.realizedPnl || 0}
                               />
                             </div>
 
-                            {/* Deployed Legs Breakdown & Partial Booking Controls */}
+                            {/* Deployed Legs Breakdown & Individual Exit Controls */}
                             <div className="space-y-1.5">
-                              <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider px-1">
-                                Active Position Legs ({trade.legs.length})
+                              <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                <span>Active Position Legs ({trade.legs.length})</span>
+                                <span className="text-[10px] font-normal text-slate-400 lowercase font-sans">Exit legs or add new strikes to shift position</span>
                               </div>
                               {trade.legs.map((leg, i) => (
                                 <div 
@@ -951,31 +1060,194 @@ export default function PaperTradingTerminal({
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center gap-3 font-mono text-xs">
+                                  <div className="flex items-center gap-2.5 font-mono text-xs">
                                     <div>
                                       <span className="text-slate-400 text-[10px] block text-right">Entry $\rightarrow$ LTP</span>
                                       <span className="text-slate-300 font-semibold">₹{formatPrice(leg.entryPrice)} $\rightarrow$ ₹{formatPrice(leg.currentLtp)}</span>
                                     </div>
 
-                                    <div className="text-right min-w-[70px]">
+                                    <div className="text-right min-w-[65px]">
                                       <span className="text-slate-400 text-[10px] block">P&L</span>
                                       <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                         {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
                                       </span>
                                     </div>
 
-                                    {/* Partial Booking Button */}
-                                    <button
-                                      onClick={() => handleBookPartialLot(trade.id, i, 1)}
-                                      className="px-2 py-1 rounded bg-amber-600/20 hover:bg-amber-600 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer shadow-sm shrink-0"
-                                      title={`Book / Square off 1 Lot of ₹${leg.strike} ${leg.type}`}
-                                    >
-                                      Book 1 Lot
-                                    </button>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {/* Partial Booking Button if multiple lots */}
+                                      {leg.lots > 1 && (
+                                        <button
+                                          onClick={() => handleBookPartialLot(trade.id, i, 1)}
+                                          className="px-1.5 py-1 rounded bg-amber-600/20 hover:bg-amber-600 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer shadow-sm"
+                                          title={`Book 1 Lot of ₹${leg.strike} ${leg.type}`}
+                                        >
+                                          Book 1L
+                                        </button>
+                                      )}
+
+                                      {/* Exit Individual Leg Button */}
+                                      <button
+                                        onClick={() => handleExitIndividualLeg(trade.id, i)}
+                                        className="px-2 py-1 rounded bg-rose-950/60 hover:bg-rose-700 border border-rose-500/40 text-rose-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                                        title={`Exit / Square off ₹${leg.strike} ${leg.type} leg immediately`}
+                                      >
+                                        <Trash2 className="w-2.5 h-2.5" />
+                                        <span>Exit Leg</span>
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
+
+                            {/* Quick Add / Shift Strike Section */}
+                            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                                  <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Shift Position / Add New Strike</span>
+                                </span>
+                                {addStrikeFormTradeId !== trade.id ? (
+                                  <button
+                                    onClick={() => {
+                                      setAddStrikeFormTradeId(trade.id);
+                                      setNewStrikeData({
+                                        strike: Math.round(trade.currentSpot || currentSpot),
+                                        type: 'CE',
+                                        action: 'SELL',
+                                        lots: 1,
+                                        entryPrice: ''
+                                      });
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>+ Add Strike</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setAddStrikeFormTradeId(null)}
+                                    className="text-[10px] text-slate-400 hover:text-white font-semibold cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
+                              </div>
+
+                              {addStrikeFormTradeId === trade.id && (
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                                  {/* Action BUY / SELL */}
+                                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                    <button
+                                      type="button"
+                                      onClick={() => setNewStrikeData(prev => ({ ...prev, action: 'BUY' }))}
+                                      className={`flex-1 py-1 rounded text-[10px] font-black transition-all cursor-pointer ${
+                                        newStrikeData.action === 'BUY' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                    >
+                                      BUY
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setNewStrikeData(prev => ({ ...prev, action: 'SELL' }))}
+                                      className={`flex-1 py-1 rounded text-[10px] font-black transition-all cursor-pointer ${
+                                        newStrikeData.action === 'SELL' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                    >
+                                      SELL
+                                    </button>
+                                  </div>
+
+                                  {/* Strike Price */}
+                                  <div className="bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                                    <span className="text-[9px] text-slate-400 block font-bold">Strike Price</span>
+                                    <input
+                                      type="number"
+                                      step="50"
+                                      placeholder="e.g. 72600"
+                                      value={newStrikeData.strike}
+                                      onChange={(e) => setNewStrikeData(prev => ({ ...prev, strike: e.target.value }))}
+                                      className="w-full bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                                    />
+                                  </div>
+
+                                  {/* Option Type CE / PE */}
+                                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                    <button
+                                      type="button"
+                                      onClick={() => setNewStrikeData(prev => ({ ...prev, type: 'CE' }))}
+                                      className={`flex-1 py-1 rounded text-[10px] font-black transition-all cursor-pointer ${
+                                        newStrikeData.type === 'CE' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                    >
+                                      CE
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setNewStrikeData(prev => ({ ...prev, type: 'PE' }))}
+                                      className={`flex-1 py-1 rounded text-[10px] font-black transition-all cursor-pointer ${
+                                        newStrikeData.type === 'PE' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                    >
+                                      PE
+                                    </button>
+                                  </div>
+
+                                  {/* Lots */}
+                                  <div className="bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                                    <span className="text-[9px] text-slate-400 block font-bold">Lots</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={newStrikeData.lots}
+                                      onChange={(e) => setNewStrikeData(prev => ({ ...prev, lots: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                                      className="w-full bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                                    />
+                                  </div>
+
+                                  {/* Entry Price & Submit */}
+                                  <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddStrikeToDeployedTrade(trade.id)}
+                                      className="w-full py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-1"
+                                    >
+                                      <span>+ Add to Trade</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Exited / Closed Legs History */}
+                            {trade.closedLegs && trade.closedLegs.length > 0 && (
+                              <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-2.5 space-y-1.5">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                                  <span>Exited Individual Legs ({trade.closedLegs.length})</span>
+                                  <span className={`font-mono ${trade.realizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    Total Realized P&L: {trade.realizedPnl >= 0 ? '+' : ''}₹{trade.realizedPnl?.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                                <div className="divide-y divide-slate-800/50 max-h-32 overflow-y-auto custom-scrollbar">
+                                  {trade.closedLegs.map((cl, cIdx) => (
+                                    <div key={cIdx} className="py-1.5 flex items-center justify-between text-[10px] font-mono">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="px-1 rounded bg-slate-800 text-slate-400 text-[9px]">EXITED</span>
+                                        <span className={cl.action === 'BUY' ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold'}>{cl.action}</span>
+                                        <span className="text-white font-bold">₹{cl.strike} {cl.type}</span>
+                                        <span className="text-slate-400">({cl.lots}L)</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-slate-400">₹{formatPrice(cl.entryPrice)} $\rightarrow$ ₹{formatPrice(cl.exitPrice)}</span>
+                                        <span className={`font-bold ${cl.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                          {cl.pnl >= 0 ? '+' : ''}₹{cl.pnl?.toLocaleString('en-IN')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Action Footer */}
                             <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">

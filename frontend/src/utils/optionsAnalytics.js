@@ -233,10 +233,11 @@ export function calculateLegT0Payoff(leg, spotAtTarget, currentSpot, dte = 3, de
 
 /**
  * Generates full payoff data curve across underlying price range (both Expiry P&L and T+0 Blue Line P&L)
+ * Includes realizedPnl offset from previously exited legs
  */
-export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 120, dte = 5) {
+export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 120, dte = 5, realizedPnl = 0) {
   if (!legs || legs.length === 0 || !currentSpot || currentSpot <= 0) {
-    return { points: [], minPnl: 0, maxPnl: 0, breakevens: [] };
+    return { points: [], minPnl: realizedPnl || 0, maxPnl: realizedPnl || 0, breakevens: [] };
   }
 
   // Find range of strikes to ensure curve encompasses all legs plus buffer
@@ -253,8 +254,8 @@ export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 
   let maxPnl = -Infinity;
 
   for (let s = lowerBound; s <= upperBound; s += stepSize) {
-    let totalPnl = 0;
-    let totalT0Pnl = 0;
+    let totalPnl = (realizedPnl || 0);
+    let totalT0Pnl = (realizedPnl || 0);
     for (const leg of legs) {
       totalPnl += calculateLegPayoff(leg, s);
       totalT0Pnl += calculateLegT0Payoff(leg, s, currentSpot, dte);
@@ -300,18 +301,18 @@ export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 
 }
 
 /**
- * Computes Max Profit, Max Loss, and Risk:Reward Ratio
+ * Computes Max Profit, Max Loss, and Risk:Reward Ratio including realized PnL
  */
-export function calculateRiskMetrics(legs, currentSpot) {
+export function calculateRiskMetrics(legs, currentSpot, realizedPnl = 0) {
   if (!legs || legs.length === 0) {
     return {
-      maxProfit: 0,
-      maxLoss: 0,
+      maxProfit: realizedPnl || 0,
+      maxLoss: realizedPnl || 0,
       isUnlimitedProfit: false,
       isUnlimitedLoss: false,
       riskRewardRatio: '—',
-      netCreditDebit: 0,
-      netType: 'Neutral',
+      netCreditDebit: realizedPnl || 0,
+      netType: (realizedPnl || 0) >= 0 ? 'In Profit' : 'In Loss',
       breakevens: []
     };
   }
@@ -319,7 +320,7 @@ export function calculateRiskMetrics(legs, currentSpot) {
   // Check asymptotic behavior as S -> 0 and S -> Infinity
   let netDeltaFarUp = 0;
   let netDeltaFarDown = 0;
-  let netPremium = 0;
+  let netPremium = realizedPnl || 0;
 
   for (const leg of legs) {
     const { type, action, entryPrice, lots = 1, lotSize = 50 } = leg;
@@ -342,7 +343,7 @@ export function calculateRiskMetrics(legs, currentSpot) {
   const isUnlimitedLoss = netDeltaFarUp < 0 || netDeltaFarDown < 0;
 
   // Sample payoff over a broad range to find peak and valley
-  const curve = generatePayoffCurve(legs, currentSpot, 0.25, 250);
+  const curve = generatePayoffCurve(legs, currentSpot, 0.25, 250, 3, realizedPnl);
   let maxProfit = isUnlimitedProfit ? 'Unlimited' : curve.maxPnl;
   let maxLoss = isUnlimitedLoss ? 'Unlimited' : curve.minPnl;
 
