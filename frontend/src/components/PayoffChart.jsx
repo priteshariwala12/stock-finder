@@ -5,7 +5,7 @@ import { RotateCcw, ZoomIn, ZoomOut, Plus, Minus, TrendingUp } from 'lucide-reac
 export default function PayoffChart({
   legs = [],
   currentSpot = 23500,
-  height = 230,
+  height = 280,
   symbol = 'NIFTY'
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
@@ -33,7 +33,7 @@ export default function PayoffChart({
 
   // Base curve calculation (auto-scaled) with both Expiry and T+0 curves
   const baseCurve = useMemo(() => {
-    return generatePayoffCurve(legs, effectiveSpot, 0.08, 120, 5);
+    return generatePayoffCurve(legs, effectiveSpot, 0.08, 120, 3);
   }, [legs, effectiveSpot]);
 
   const baseLower = baseCurve.lowerBound || (effectiveSpot * 0.94);
@@ -55,7 +55,7 @@ export default function PayoffChart({
       let t0Pnl = 0;
       for (const leg of legs) {
         pnl += calculateLegPayoff(leg, spot);
-        t0Pnl += calculateLegT0Payoff(leg, spot, effectiveSpot, 5);
+        t0Pnl += calculateLegT0Payoff(leg, spot, effectiveSpot, 3);
       }
       pts.push({ 
         spot: Math.round(spot * 10) / 10, 
@@ -289,7 +289,7 @@ export default function PayoffChart({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleDoubleClick}
-      className="relative w-full select-none bg-slate-950/90 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group"
+      className="relative w-full h-full min-h-[250px] select-none bg-slate-950/90 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group flex flex-col justify-between"
       title="Click and drag horizontally to Zoom. Blue Line = T+0 (Today's Live P&L) • Cyan = Expiry P&L"
     >
       {/* Legend & Zoom Toolbar */}
@@ -339,7 +339,7 @@ export default function PayoffChart({
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-auto overflow-visible"
+        className="w-full flex-1 min-h-[210px] overflow-visible"
       >
         <defs>
           {/* Gradient for Profit Zone */}

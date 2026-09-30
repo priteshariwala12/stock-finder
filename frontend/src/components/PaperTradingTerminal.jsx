@@ -48,6 +48,7 @@ export default function PaperTradingTerminal({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [strategyName, setStrategyName] = useState('');
+  const [lotMultiplier, setLotMultiplier] = useState(1);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [expandedTradeId, setExpandedTradeId] = useState(null);
 
@@ -194,6 +195,18 @@ export default function PaperTradingTerminal({
     onUpdateLegs(updated);
   };
 
+  const handleApplyLotMultiplier = (mult) => {
+    const targetMult = Math.max(1, mult);
+    const currentMult = Math.max(1, lotMultiplier);
+    const factor = targetMult / currentMult;
+    const updated = activeLegs.map(leg => ({
+      ...leg,
+      lots: Math.max(1, Math.round((leg.lots || 1) * factor))
+    }));
+    setLotMultiplier(targetMult);
+    onUpdateLegs(updated);
+  };
+
   const handleUpdateEntryPrice = (index, newPrice) => {
     const updated = [...activeLegs];
     const parsed = parseFloat(newPrice);
@@ -218,6 +231,7 @@ export default function PaperTradingTerminal({
   const handleClearAll = () => {
     onUpdateLegs([]);
     setStrategyName('');
+    setLotMultiplier(1);
   };
 
   // Save Strategy Template with Custom Name
@@ -661,11 +675,57 @@ export default function PaperTradingTerminal({
                     ))
                   )}
                 </div>
+
+                {/* Lot Multiplier Toolbar */}
+                {enrichedLegs.length > 0 && (
+                  <div className="px-3 py-1.5 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-300">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Lot Multiplier:</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 5, 10].map(mult => (
+                        <button
+                          key={mult}
+                          onClick={() => handleApplyLotMultiplier(mult)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                            lotMultiplier === mult 
+                              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/50 border border-indigo-400/50' 
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                          }`}
+                          title={`Scale entire strategy to ${mult}x lots`}
+                        >
+                          {mult}x
+                        </button>
+                      ))}
+
+                      <div className="flex items-center gap-0.5 ml-1 bg-slate-950 px-1 py-0.5 rounded border border-slate-800">
+                        <button
+                          onClick={() => handleApplyLotMultiplier(Math.max(1, lotMultiplier - 1))}
+                          className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                          title="Decrease multiplier (-1x)"
+                        >
+                          <Minus className="w-2.5 h-2.5" />
+                        </button>
+                        <span className="font-mono text-[10px] font-bold text-indigo-300 px-1 min-w-[24px] text-center">
+                          {lotMultiplier}x
+                        </span>
+                        <button
+                          onClick={() => handleApplyLotMultiplier(lotMultiplier + 1)}
+                          className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                          title="Increase multiplier (+1x)"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 3. Interactive Payoff Chart with Drag-to-Zoom & T+0 Blue Curve */}
-              <div className="flex-1 flex flex-col min-h-[220px]">
-                <div className="flex items-center justify-between mb-1 text-xs">
+              <div className="flex-1 flex flex-col min-h-[270px]">
+                <div className="flex items-center justify-between mb-1.5 text-xs shrink-0">
                   <div className="flex items-center gap-1.5 font-bold text-white uppercase tracking-wider text-[11px]">
                     <PieChart className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Payoff Analysis ({strategyAssetSymbol} Spot ₹{strategyAssetSpot.toLocaleString('en-IN')})</span>
@@ -676,12 +736,12 @@ export default function PaperTradingTerminal({
                     </span>
                   )}
                 </div>
-                <div className="flex-1 min-h-[200px]">
+                <div className="flex-1 min-h-[250px] flex flex-col">
                   <PayoffChart 
                     legs={enrichedLegs} 
                     currentSpot={strategyAssetSpot} 
                     symbol={strategyAssetSymbol}
-                    height={220} 
+                    height={280} 
                   />
                 </div>
               </div>

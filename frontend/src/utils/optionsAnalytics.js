@@ -79,9 +79,9 @@ export function blackScholesPrice(type, spot, strike, dte = 5, iv = 0.16, r = 0.
 
 /**
  * Calculates accurate T+0 payoff for a leg at hypothetical target spot S
- * Anchored to the current live market price (LTP) at currentSpot (StockMock / Sensibull simulator method)
+ * Anchored to the current live market price (LTP) at currentSpot with Extrinsic Black-Scholes scaling (StockMock / Sensibull simulator method)
  */
-export function calculateLegT0Payoff(leg, spotAtTarget, currentSpot, dte = 5, defaultIv = 0.16) {
+export function calculateLegT0Payoff(leg, spotAtTarget, currentSpot, dte = 3, defaultIv = 0.16) {
   const { type, action, strike, entryPrice, currentLtp, iv, lots = 1, lotSize = 50 } = leg;
   const legIv = (iv && parseFloat(iv) > 0 ? parseFloat(iv) / 100 : defaultIv);
   const totalQty = Math.max(1, lots) * Math.max(1, lotSize);
@@ -94,13 +94,30 @@ export function calculateLegT0Payoff(leg, spotAtTarget, currentSpot, dte = 5, de
       ? parseFloat(entryPrice)
       : blackScholesPrice(type, currentSpot, strike, dte, legIv);
 
-  // Black-Scholes theoretical delta shift from currentSpot (S0) to spotAtTarget (S)
+  // 1. Calculate Intrinsic values at Target Spot (S) and Current Spot (S0)
+  const intrinsicTarget = type === 'CE' ? Math.max(0, spotAtTarget - strike) : Math.max(0, strike - spotAtTarget);
+  const intrinsicCurrent = type === 'CE' ? Math.max(0, currentSpot - strike) : Math.max(0, strike - currentSpot);
+
+  // 2. Actual Live Extrinsic value at current spot S0
+  const liveExtrinsic = Math.max(0, basePrice - intrinsicCurrent);
+
+  // 3. Black-Scholes Theoretical Extrinsic at Target Spot (S) and Current Spot (S0)
   const bsTarget = blackScholesPrice(type, spotAtTarget, strike, dte, legIv);
   const bsCurrent = blackScholesPrice(type, currentSpot, strike, dte, legIv);
-  const deltaPrice = bsTarget - bsCurrent;
+  const bsExtrinsicTarget = Math.max(0, bsTarget - intrinsicTarget);
+  const bsExtrinsicCurrent = Math.max(0, bsCurrent - intrinsicCurrent);
 
-  // Estimated theoretical price today at target spot:
-  const estimatedPriceToday = Math.max(0, basePrice + deltaPrice);
+  // 4. Smoothly scale live extrinsic value by Black-Scholes extrinsic ratio
+  let estimatedExtrinsicToday = 0;
+  if (bsExtrinsicCurrent > 0.05) {
+    const ratio = Math.min(2.5, bsExtrinsicTarget / bsExtrinsicCurrent);
+    estimatedExtrinsicToday = liveExtrinsic * ratio;
+  } else {
+    estimatedExtrinsicToday = bsExtrinsicTarget;
+  }
+
+  // 5. Estimated theoretical option price today at target spot:
+  const estimatedPriceToday = Math.max(0, intrinsicTarget + estimatedExtrinsicToday);
 
   const pnlPerShare = isBuy ? (estimatedPriceToday - entryPrice) : (entryPrice - estimatedPriceToday);
   return pnlPerShare * totalQty;
