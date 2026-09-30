@@ -54,6 +54,9 @@ export default function PaperTradingTerminal({
   const [isMaximized, setIsMaximized] = useState(false);
   const [strategyName, setStrategyName] = useState('');
   const [lotMultiplier, setLotMultiplier] = useState(1);
+  const [builderRealizedPnl, setBuilderRealizedPnl] = useState(0);
+  const [editingTradeId, setEditingTradeId] = useState(null);
+  const [builderClosedLegs, setBuilderClosedLegs] = useState([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [expandedTradeId, setExpandedTradeId] = useState(null);
   const [addStrikeFormTradeId, setAddStrikeFormTradeId] = useState(null);
@@ -145,22 +148,22 @@ export default function PaperTradingTerminal({
     return currentSpot;
   }, [strategyAssetSymbol, spotPricesMap, activeLegs, currentSpot]);
 
-  // Compute live strategy metrics for builder using strategy's own asset spot
+  // Compute live strategy metrics for builder using strategy's own asset spot and builderRealizedPnl
   const metrics = useMemo(() => {
-    return calculateRiskMetrics(enrichedLegs, strategyAssetSpot);
-  }, [enrichedLegs, strategyAssetSpot]);
+    return calculateRiskMetrics(enrichedLegs, strategyAssetSpot, builderRealizedPnl);
+  }, [enrichedLegs, strategyAssetSpot, builderRealizedPnl]);
 
   const requiredMargin = useMemo(() => {
     return calculateRequiredMargin(enrichedLegs, strategyAssetSpot, strategyAssetSymbol);
   }, [enrichedLegs, strategyAssetSpot, strategyAssetSymbol]);
 
   const pop = useMemo(() => {
-    return calculateProbabilityOfProfit(enrichedLegs, strategyAssetSpot, 15, 3);
-  }, [enrichedLegs, strategyAssetSpot]);
+    return calculateProbabilityOfProfit(enrichedLegs, strategyAssetSpot, 15, 3, builderRealizedPnl);
+  }, [enrichedLegs, strategyAssetSpot, builderRealizedPnl]);
 
   const liveStrategyPnl = useMemo(() => {
-    return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0);
-  }, [enrichedLegs]);
+    return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0) + (builderRealizedPnl || 0);
+  }, [enrichedLegs, builderRealizedPnl]);
 
   // Calculate live PnL and dynamic metrics for deployed paper portfolio across ALL assets (incorporating realized PnL)
   const deployedWithLivePnl = useMemo(() => {
@@ -247,6 +250,9 @@ export default function PaperTradingTerminal({
     onUpdateLegs([]);
     setStrategyName('');
     setLotMultiplier(1);
+    setBuilderRealizedPnl(0);
+    setEditingTradeId(null);
+    setBuilderClosedLegs([]);
   };
 
   // Save Strategy Template with Custom Name
@@ -279,6 +285,9 @@ export default function PaperTradingTerminal({
     if (strategy && strategy.legs) {
       onUpdateLegs(strategy.legs.map(l => ({ ...l })));
       setStrategyName(strategy.name || '');
+      setBuilderRealizedPnl(0);
+      setEditingTradeId(null);
+      setBuilderClosedLegs([]);
       setActiveTab('builder');
       setDeployNotification(`Loaded strategy "${strategy.name}"!`);
       setTimeout(() => setDeployNotification(null), 3000);
@@ -290,35 +299,43 @@ export default function PaperTradingTerminal({
     setSavedStrategies(prev => prev.filter(s => s.id !== id));
   };
 
-  // Deploy paper trade into active portfolio
+  // Deploy paper trade into active portfolio (or update existing if editing)
   const handleDeployTrade = () => {
     if (!activeLegs || activeLegs.length === 0) return;
-    const name = strategyName.trim() || `${symbol} ${activeLegs.length}-Leg Trade`;
+    const name = strategyName.trim() || `${strategyAssetSymbol} ${activeLegs.length}-Leg Trade`;
 
     const newTrade = {
-      id: `PT-${Date.now()}`,
+      id: editingTradeId || `PT-${Date.now()}`,
       name,
-      symbol,
+      symbol: strategyAssetSymbol,
       expiry,
-      spotAtEntry: currentSpot,
+      spotAtEntry: strategyAssetSpot,
       deployedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       legs: enrichedLegs.map(l => ({ ...l })),
       requiredMargin,
       maxProfit: metrics.maxProfit,
       maxLoss: metrics.maxLoss,
       pop,
-      realizedPnl: 0,
+      realizedPnl: builderRealizedPnl || 0,
+      closedLegs: builderClosedLegs || [],
       status: 'OPEN'
     };
 
-    setDeployedTrades(prev => [newTrade, ...prev]);
-    setDeployNotification(`Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
+    setDeployedTrades(prev => {
+      const filtered = editingTradeId ? prev.filter(t => t.id !== editingTradeId) : prev;
+      return [newTrade, ...filtered];
+    });
+
+    setDeployNotification(editingTradeId ? `Position "${name}" updated with ${activeLegs.length} legs!` : `Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
     setTimeout(() => setDeployNotification(null), 4000);
     setActiveTab('deployed');
     setExpandedTradeId(newTrade.id);
-    // Clear builder legs
+    // Clear builder legs and reset editing state
     onUpdateLegs([]);
     setStrategyName('');
+    setBuilderRealizedPnl(0);
+    setEditingTradeId(null);
+    setBuilderClosedLegs([]);
   };
 
   // Edit Deployed Trade in Builder (Load legs into Builder to add new strikes)
@@ -326,8 +343,11 @@ export default function PaperTradingTerminal({
     if (!trade || !trade.legs) return;
     onUpdateLegs(trade.legs.map(l => ({ ...l })));
     setStrategyName(trade.name || '');
+    setBuilderRealizedPnl(trade.realizedPnl || 0);
+    setEditingTradeId(trade.id);
+    setBuilderClosedLegs(trade.closedLegs || []);
     setActiveTab('builder');
-    setDeployNotification(`Loaded "${trade.name}" into Builder! You can now add/remove strikes or adjust prices.`);
+    setDeployNotification(`Loaded "${trade.name}" into Builder! Realized P&L ${trade.realizedPnl >= 0 ? '+' : ''}₹${(trade.realizedPnl || 0).toLocaleString('en-IN')} merged with projection.`);
     setTimeout(() => setDeployNotification(null), 4000);
   };
 
@@ -634,6 +654,27 @@ export default function PaperTradingTerminal({
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-900">
           {activeTab === 'builder' ? (
             <div className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 flex flex-col`}>
+              {/* Editing Deployed Trade Alert Banner */}
+              {editingTradeId && (
+                <div className="bg-indigo-950/80 border border-indigo-500/50 p-2 px-3 rounded-xl flex items-center justify-between text-xs text-indigo-200 shrink-0 shadow-md">
+                  <div className="flex items-center gap-2">
+                    <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Editing Active Position: <b className="text-white">{strategyName}</b></span>
+                    {builderRealizedPnl !== 0 && (
+                      <span className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] ${builderRealizedPnl >= 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' : 'bg-rose-950 text-rose-300 border border-rose-500/30'}`}>
+                        Exited P&L: {builderRealizedPnl >= 0 ? '+' : ''}₹{builderRealizedPnl.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-[10px] text-slate-400 hover:text-white font-semibold cursor-pointer underline"
+                  >
+                    Cancel Edit
+                  </button>
+                </div>
+              )}
+
               {/* Strategy Name Banner Input */}
               <div className="flex items-center gap-2 bg-slate-950 p-1.5 px-2.5 rounded-xl border border-slate-800 shrink-0">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Strategy Name:</span>
@@ -671,12 +712,16 @@ export default function PaperTradingTerminal({
                 {/* 2. Live PnL */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Live Strategy P&L
+                    {builderRealizedPnl !== 0 ? 'Total Live P&L (Net)' : 'Live Strategy P&L'}
                   </span>
                   <span className={`text-xs sm:text-sm font-black font-mono ${liveStrategyPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {liveStrategyPnl >= 0 ? '+' : ''}₹{liveStrategyPnl.toLocaleString('en-IN')}
                   </span>
-                  <span className="text-[9px] text-slate-500 block">Realtime 1s</span>
+                  <span className="text-[9px] text-slate-500 block font-mono">
+                    {builderRealizedPnl !== 0
+                      ? `(Active: ${enrichedLegs.reduce((a, l) => a + (l.livePnl || 0), 0) >= 0 ? '+' : ''}₹${enrichedLegs.reduce((a, l) => a + (l.livePnl || 0), 0)} | Exited: ${builderRealizedPnl >= 0 ? '+' : ''}₹${builderRealizedPnl})`
+                      : 'Realtime 1s'}
+                  </span>
                 </div>
 
                 {/* 3. Max Profit */}
@@ -686,7 +731,7 @@ export default function PaperTradingTerminal({
                   </span>
                   <span className="text-xs sm:text-sm font-black font-mono text-emerald-400">
                     {typeof metrics.maxProfit === 'number'
-                      ? `+₹${metrics.maxProfit.toLocaleString('en-IN')}`
+                      ? `${metrics.maxProfit >= 0 ? '+' : ''}₹${metrics.maxProfit.toLocaleString('en-IN')}`
                       : metrics.maxProfit}
                   </span>
                   <span className="text-[9px] text-slate-500 block">{metrics.netType}</span>
@@ -871,11 +916,12 @@ export default function PaperTradingTerminal({
                     currentSpot={strategyAssetSpot} 
                     symbol={strategyAssetSymbol}
                     height={280} 
+                    realizedPnl={builderRealizedPnl || 0}
                   />
                 </div>
               </div>
 
-              {/* 4. Action Buttons (Save & Deploy) */}
+              {/* 4. Action Buttons (Save & Deploy/Update) */}
               <div className="flex items-center gap-2 shrink-0 mt-auto">
                 <button
                   onClick={() => setIsSaveModalOpen(true)}
@@ -891,7 +937,7 @@ export default function PaperTradingTerminal({
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                  <span>Deploy Paper Trade ({enrichedLegs.length} Legs)</span>
+                  <span>{editingTradeId ? `Update Position (${enrichedLegs.length} Legs)` : `Deploy Paper Trade (${enrichedLegs.length} Legs)`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
