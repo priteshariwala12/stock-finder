@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { generatePayoffCurve, calculateLegPayoff, calculateLegT0Payoff } from '../utils/optionsAnalytics';
+import { generatePayoffCurve, calculateLegPayoff, calculateLegT0Payoff, calculateStrategyGreeks } from '../utils/optionsAnalytics';
 import { RotateCcw, ZoomIn, ZoomOut, Plus, Minus, TrendingUp } from 'lucide-react';
 
 export default function PayoffChart({
@@ -80,6 +80,11 @@ export default function PayoffChart({
       return acc + pnl;
     }, 0);
   }, [legs]);
+
+  // Aggregate strategy portfolio Greeks (Delta, Gamma, Theta, Vega)
+  const strategyGreeks = useMemo(() => {
+    return calculateStrategyGreeks(legs, effectiveSpot, 3);
+  }, [legs, effectiveSpot]);
 
   // Breakevens from base curve
   const breakevens = baseCurve.breakevens || [];
@@ -294,16 +299,24 @@ export default function PayoffChart({
     >
       {/* Legend & Zoom Toolbar */}
       <div className="absolute top-2 left-3 right-2 z-20 flex items-center justify-between pointer-events-none">
-        {/* Curve Legend */}
-        <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-lg text-[10px] font-mono shadow-sm">
+        {/* Curve Legend & Strategy Greeks */}
+        <div className="flex items-center gap-2.5 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-lg text-[10px] font-mono shadow-sm">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block"></span>
-            <span className="text-blue-400 font-bold">T+0 (Today)</span>
+            <span className="text-blue-400 font-bold">T+0 (Live)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 bg-cyan-400 rounded-full inline-block"></span>
             <span className="text-cyan-300 font-bold">Expiry</span>
           </div>
+          {legs.length > 0 && (
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-700 text-[9px] text-slate-400">
+              <span title="Portfolio Delta">Δ: <b className={strategyGreeks.delta >= 0 ? "text-emerald-400" : "text-rose-400"}>{strategyGreeks.delta > 0 ? `+${strategyGreeks.delta}` : strategyGreeks.delta}</b></span>
+              <span title="Portfolio Theta (₹/day)">Θ: <b className="text-amber-300">{strategyGreeks.theta >= 0 ? `+₹${strategyGreeks.theta}` : `-₹${Math.abs(strategyGreeks.theta)}`}/d</b></span>
+              <span title="Portfolio Gamma">Γ: <b className="text-cyan-300">{strategyGreeks.gamma}</b></span>
+              <span title="Portfolio Vega (₹/1% IV)">ν: <b className="text-purple-300">₹{strategyGreeks.vega}</b></span>
+            </div>
+          )}
         </div>
 
         {/* Small Zoom Controls (Zoom In, Zoom Out, Reset) */}
