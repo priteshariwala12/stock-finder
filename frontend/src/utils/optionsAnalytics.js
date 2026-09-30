@@ -50,9 +50,51 @@ export function calculateLegPayoff(leg, spotAtExpiry) {
 }
 
 /**
- * Generates full payoff data curve across underlying price range
+ * Black-Scholes Option Pricing Formula for T+0 Live Greeks Curve
+ * @param {'CE'|'PE'} type 
+ * @param {number} spot 
+ * @param {number} strike 
+ * @param {number} dte - Days to expiry
+ * @param {number} iv - Implied volatility (e.g. 0.16 for 16%)
+ * @param {number} r - Risk free interest rate (default 7% = 0.07)
  */
-export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 120) {
+export function blackScholesPrice(type, spot, strike, dte = 5, iv = 0.16, r = 0.07) {
+  if (spot <= 0 || strike <= 0) return 0;
+  if (dte <= 0.01) {
+    return type === 'CE' ? Math.max(0, spot - strike) : Math.max(0, strike - spot);
+  }
+  const T = Math.max(0.001, dte / 365);
+  const sigma = Math.max(0.01, iv);
+  const sqrtT = Math.sqrt(T);
+
+  const d1 = (Math.log(spot / strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+
+  if (type === 'CE') {
+    return spot * normalCdf(d1) - strike * Math.exp(-r * T) * normalCdf(d2);
+  } else {
+    return strike * Math.exp(-r * T) * normalCdf(-d2) - spot * normalCdf(-d1);
+  }
+}
+
+/**
+ * Calculates current T+0 payoff for a leg at hypothetical spot S
+ */
+export function calculateLegT0Payoff(leg, spotAtTarget, dte = 5, defaultIv = 0.16) {
+  const { type, action, strike, entryPrice, iv, lots = 1, lotSize = 50 } = leg;
+  const legIv = (iv && parseFloat(iv) > 0 ? parseFloat(iv) / 100 : defaultIv);
+  const totalQty = Math.max(1, lots) * Math.max(1, lotSize);
+  const isBuy = action === 'BUY';
+
+  const theoreticalToday = blackScholesPrice(type, spotAtTarget, strike, dte, legIv);
+  const pnlPerShare = isBuy ? (theoreticalToday - entryPrice) : (entryPrice - theoreticalToday);
+  return pnlPerShare * totalQty;
+}
+
+/**
+ * Generates full payoff data curve across underlying price range (both Expiry P&L and T+0 Blue Line P&L)
+ */
+export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 120, dte = 5) {
   if (!legs || legs.length === 0 || !currentSpot || currentSpot <= 0) {
     return { points: [], minPnl: 0, maxPnl: 0, breakevens: [] };
   }
@@ -72,18 +114,26 @@ export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 
 
   for (let s = lowerBound; s <= upperBound; s += stepSize) {
     let totalPnl = 0;
+    let totalT0Pnl = 0;
     for (const leg of legs) {
       totalPnl += calculateLegPayoff(leg, s);
+      totalT0Pnl += calculateLegT0Payoff(leg, s, dte);
     }
+
+    const roundedPnl = Math.round(totalPnl);
+    const roundedT0 = Math.round(totalT0Pnl);
 
     points.push({
       spot: Math.round(s * 100) / 100,
-      pnl: Math.round(totalPnl),
-      isProfit: totalPnl >= 0
+      pnl: roundedPnl,
+      t0Pnl: roundedT0,
+      isProfit: roundedPnl >= 0
     });
 
-    if (totalPnl < minPnl) minPnl = totalPnl;
-    if (totalPnl > maxPnl) maxPnl = totalPnl;
+    if (roundedPnl < minPnl) minPnl = roundedPnl;
+    if (roundedT0 < minPnl) minPnl = roundedT0;
+    if (roundedPnl > maxPnl) maxPnl = roundedPnl;
+    if (roundedT0 > maxPnl) maxPnl = roundedT0;
   }
 
   // Find Breakevens (linear interpolation where payoff crosses 0)

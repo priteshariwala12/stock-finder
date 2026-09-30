@@ -114,18 +114,41 @@ export default function PaperTradingTerminal({
     });
   }, [activeLegs, quotesMap, lotSize, symbol]);
 
-  // Compute live strategy metrics for builder
+  // Resolve strategy's own underlying asset symbol and spot price
+  const strategyAssetSymbol = useMemo(() => {
+    if (activeLegs.length > 0 && activeLegs[0].symbol) {
+      return activeLegs[0].symbol.toUpperCase();
+    }
+    const strikes = activeLegs.map(l => l.strike);
+    if (strikes.some(s => s > 60000)) return 'SENSEX';
+    if (strikes.some(s => s > 40000)) return 'BANKNIFTY';
+    if (strikes.some(s => s > 15000 && s < 30000)) return 'NIFTY';
+    return (symbol || 'NIFTY').toUpperCase();
+  }, [activeLegs, symbol]);
+
+  const strategyAssetSpot = useMemo(() => {
+    if (spotPricesMap[strategyAssetSymbol]) return spotPricesMap[strategyAssetSymbol];
+    if (activeLegs.length > 0) {
+      const avgStrike = activeLegs.reduce((a, l) => a + (l.strike || 0), 0) / activeLegs.length;
+      if (Math.abs(currentSpot - avgStrike) / avgStrike > 0.20) {
+        return Math.round(avgStrike);
+      }
+    }
+    return currentSpot;
+  }, [strategyAssetSymbol, spotPricesMap, activeLegs, currentSpot]);
+
+  // Compute live strategy metrics for builder using strategy's own asset spot
   const metrics = useMemo(() => {
-    return calculateRiskMetrics(enrichedLegs, currentSpot);
-  }, [enrichedLegs, currentSpot]);
+    return calculateRiskMetrics(enrichedLegs, strategyAssetSpot);
+  }, [enrichedLegs, strategyAssetSpot]);
 
   const requiredMargin = useMemo(() => {
-    return calculateRequiredMargin(enrichedLegs, currentSpot, symbol);
-  }, [enrichedLegs, currentSpot, symbol]);
+    return calculateRequiredMargin(enrichedLegs, strategyAssetSpot, strategyAssetSymbol);
+  }, [enrichedLegs, strategyAssetSpot, strategyAssetSymbol]);
 
   const pop = useMemo(() => {
-    return calculateProbabilityOfProfit(enrichedLegs, currentSpot, 15, 3);
-  }, [enrichedLegs, currentSpot]);
+    return calculateProbabilityOfProfit(enrichedLegs, strategyAssetSpot, 15, 3);
+  }, [enrichedLegs, strategyAssetSpot]);
 
   const liveStrategyPnl = useMemo(() => {
     return enrichedLegs.reduce((acc, leg) => acc + (leg.livePnl || 0), 0);
@@ -548,10 +571,15 @@ export default function PaperTradingTerminal({
               {/* 2. Active Strategy Legs Table */}
               <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shrink-0">
                 <div className="px-3 py-1.5 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between text-xs font-bold text-slate-300">
-                  <span>Strategy Legs ({enrichedLegs.length})</span>
+                  <div className="flex items-center gap-2">
+                    <span>Strategy Legs ({enrichedLegs.length})</span>
+                    <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px]">
+                      {strategyAssetSymbol}
+                    </span>
+                  </div>
                   {activeLegs.length > 0 && (
                     <span className="text-[11px] text-slate-400 font-mono font-normal">
-                      Spot: ₹{currentSpot.toLocaleString('en-IN')}
+                      Spot: ₹{strategyAssetSpot.toLocaleString('en-IN')}
                     </span>
                   )}
                 </div>
@@ -635,12 +663,12 @@ export default function PaperTradingTerminal({
                 </div>
               </div>
 
-              {/* 3. Interactive Payoff Chart with Drag-to-Zoom */}
+              {/* 3. Interactive Payoff Chart with Drag-to-Zoom & T+0 Blue Curve */}
               <div className="flex-1 flex flex-col min-h-[220px]">
                 <div className="flex items-center justify-between mb-1 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-white uppercase tracking-wider text-[11px]">
                     <PieChart className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Payoff Curve at Expiry (Drag to Zoom)</span>
+                    <span>Payoff Analysis ({strategyAssetSymbol} Spot ₹{strategyAssetSpot.toLocaleString('en-IN')})</span>
                   </div>
                   {metrics.breakevens && metrics.breakevens.length > 0 && (
                     <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/30 px-1.5 py-0.5 rounded">
@@ -651,8 +679,8 @@ export default function PaperTradingTerminal({
                 <div className="flex-1 min-h-[200px]">
                   <PayoffChart 
                     legs={enrichedLegs} 
-                    currentSpot={currentSpot} 
-                    symbol={symbol}
+                    currentSpot={strategyAssetSpot} 
+                    symbol={strategyAssetSymbol}
                     height={220} 
                   />
                 </div>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { generatePayoffCurve, calculateLegPayoff } from '../utils/optionsAnalytics';
-import { RotateCcw, ZoomIn, ZoomOut, Plus, Minus } from 'lucide-react';
+import { generatePayoffCurve, calculateLegPayoff, calculateLegT0Payoff } from '../utils/optionsAnalytics';
+import { RotateCcw, ZoomIn, ZoomOut, Plus, Minus, TrendingUp } from 'lucide-react';
 
 export default function PayoffChart({
   legs = [],
@@ -13,24 +13,37 @@ export default function PayoffChart({
   const [dragState, setDragState] = useState(null); // { startSvgX, currentSvgX, isDragging }
   const containerRef = useRef(null);
 
+  // Self-correct spot if strategy legs belong to another asset (e.g. SENSEX 72,000 vs NIFTY 22,700)
+  const effectiveSpot = useMemo(() => {
+    if (!legs || legs.length === 0) return currentSpot;
+    const strikes = legs.map(l => l.strike).filter(Boolean);
+    if (strikes.length === 0) return currentSpot;
+    const avgStrike = strikes.reduce((a, b) => a + b, 0) / strikes.length;
+    // If currentSpot is completely mismatched by > 20% (e.g. 54,000 vs 72,000), anchor to avgStrike
+    if (currentSpot && Math.abs(currentSpot - avgStrike) / avgStrike > 0.20) {
+      return Math.round(avgStrike);
+    }
+    return currentSpot;
+  }, [legs, currentSpot]);
+
   // Reset zoom when symbol changes
   useEffect(() => {
     setZoomDomain(null);
   }, [symbol]);
 
-  // Base curve calculation (auto-scaled)
+  // Base curve calculation (auto-scaled) with both Expiry and T+0 curves
   const baseCurve = useMemo(() => {
-    return generatePayoffCurve(legs, currentSpot, 0.08, 120);
-  }, [legs, currentSpot]);
+    return generatePayoffCurve(legs, effectiveSpot, 0.08, 120, 5);
+  }, [legs, effectiveSpot]);
 
-  const baseLower = baseCurve.lowerBound || (currentSpot * 0.94);
-  const baseUpper = baseCurve.upperBound || (currentSpot * 1.06);
+  const baseLower = baseCurve.lowerBound || (effectiveSpot * 0.94);
+  const baseUpper = baseCurve.upperBound || (effectiveSpot * 1.06);
 
   // Active bounds (zoomed or base)
   const lowerBound = zoomDomain ? zoomDomain.lower : baseLower;
   const upperBound = zoomDomain ? zoomDomain.upper : baseUpper;
 
-  // Recalculate 140 fine-grained points for current visible bound
+  // Recalculate 140 fine-grained points for current visible bound (both Expiry & T+0)
   const points = useMemo(() => {
     if (!legs || legs.length === 0 || lowerBound >= upperBound) return [];
     const pts = [];
@@ -39,10 +52,16 @@ export default function PayoffChart({
     for (let i = 0; i <= steps; i++) {
       const spot = lowerBound + i * stepSize;
       let pnl = 0;
+      let t0Pnl = 0;
       for (const leg of legs) {
         pnl += calculateLegPayoff(leg, spot);
+        t0Pnl += calculateLegT0Payoff(leg, spot, 5);
       }
-      pts.push({ spot, pnl: Math.round(pnl) });
+      pts.push({ 
+        spot: Math.round(spot * 10) / 10, 
+        pnl: Math.round(pnl),
+        t0Pnl: Math.round(t0Pnl)
+      });
     }
     return pts;
   }, [legs, lowerBound, upperBound]);
@@ -52,16 +71,16 @@ export default function PayoffChart({
 
   // Chart dimensions & margins
   const width = 760;
-  const padding = { top: 26, right: 40, bottom: 36, left: 68 };
+  const padding = { top: 28, right: 40, bottom: 36, left: 68 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = Math.max(100, height - padding.top - padding.bottom);
 
   // Compute symmetrical or padded Y-axis domain around 0
   const yDomain = useMemo(() => {
     if (points.length === 0) return { min: -1000, max: 1000 };
-    const pnlVals = points.map(p => p.pnl);
-    const minP = Math.min(...pnlVals);
-    const maxP = Math.max(...pnlVals);
+    const allPnl = points.flatMap(p => [p.pnl, p.t0Pnl]);
+    const minP = Math.min(...allPnl);
+    const maxP = Math.max(...allPnl);
     const absMax = Math.max(Math.abs(minP), Math.abs(maxP), 500);
     const padded = Math.ceil((absMax * 1.15) / 100) * 100;
     return { min: -padded, max: padded };
@@ -86,20 +105,26 @@ export default function PayoffChart({
   };
 
   const zeroY = getY(0);
-  const spotX = getX(currentSpot);
+  const spotX = getX(effectiveSpot);
 
-  // Build SVG path strings
-  const { pathString, fullArea } = useMemo(() => {
-    if (!points || points.length === 0) return { pathString: '', fullArea: '' };
+  // Build SVG path strings for BOTH Expiry and T+0 curves
+  const { pathString, t0PathString, fullArea } = useMemo(() => {
+    if (!points || points.length === 0) return { pathString: '', t0PathString: '', fullArea: '' };
 
+    // 1. Expiry Payoff Line
     const pts = points.map(p => `${getX(p.spot).toFixed(1)},${getY(p.pnl).toFixed(1)}`);
     const pathString = `M ${pts.join(' L ')}`;
 
+    // 2. T+0 (Today's Live) Blue Line
+    const t0Pts = points.map(p => `${getX(p.spot).toFixed(1)},${getY(p.t0Pnl).toFixed(1)}`);
+    const t0PathString = `M ${t0Pts.join(' L ')}`;
+
+    // 3. Filled Background Shading for Expiry
     const firstX = getX(points[0].spot);
     const lastX = getX(points[points.length - 1].spot);
     const fullArea = `M ${firstX},${zeroY} L ${pts.join(' L ')} L ${lastX},${zeroY} Z`;
 
-    return { pathString, fullArea };
+    return { pathString, t0PathString, fullArea };
   }, [points, lowerBound, upperBound, yDomain, zeroY]);
 
   // Helper to extract SVG X from mouse event
@@ -249,37 +274,52 @@ export default function PayoffChart({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleDoubleClick}
-      className="relative w-full select-none bg-slate-950/80 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group"
-      title="Click and drag horizontally to Zoom in. Double click or use toolbar buttons to control zoom."
+      className="relative w-full select-none bg-slate-950/90 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group"
+      title="Click and drag horizontally to Zoom. Blue Line = T+0 (Today's Live P&L) • Cyan = Expiry P&L"
     >
-      {/* Small Zoom Controls Toolbar (Zoom In, Zoom Out, Reset) */}
-      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-slate-900/95 border border-slate-700 rounded-lg p-0.5 shadow-lg backdrop-blur-sm pointer-events-auto">
-        <button
-          onClick={handleZoomIn}
-          className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
-          title="Zoom In (+)"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
-          title="Zoom Out (-)"
-        >
-          <Minus className="w-3 h-3" />
-        </button>
-        <button
-          onClick={handleResetZoom}
-          className={`p-1 px-1.5 rounded text-[10px] transition-colors flex items-center gap-1 cursor-pointer ${
-            zoomDomain 
-              ? 'bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-sm' 
-              : 'hover:bg-slate-800 text-slate-400 hover:text-white font-semibold'
-          }`}
-          title="Reset Zoom to full range (↺)"
-        >
-          <RotateCcw className="w-2.5 h-2.5" />
-          <span>Reset</span>
-        </button>
+      {/* Legend & Zoom Toolbar */}
+      <div className="absolute top-2 left-3 right-2 z-20 flex items-center justify-between pointer-events-none">
+        {/* Curve Legend */}
+        <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-lg text-[10px] font-mono shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block"></span>
+            <span className="text-blue-400 font-bold">T+0 (Today)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 bg-cyan-400 rounded-full inline-block"></span>
+            <span className="text-cyan-300 font-bold">Expiry</span>
+          </div>
+        </div>
+
+        {/* Small Zoom Controls (Zoom In, Zoom Out, Reset) */}
+        <div className="flex items-center gap-1 bg-slate-900/95 border border-slate-700 rounded-lg p-0.5 shadow-lg backdrop-blur-sm pointer-events-auto">
+          <button
+            onClick={handleZoomIn}
+            className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+            title="Zoom In (+)"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-1 px-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+            title="Zoom Out (-)"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className={`p-1 px-1.5 rounded text-[10px] transition-colors flex items-center gap-1 cursor-pointer ${
+              zoomDomain 
+                ? 'bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-sm' 
+                : 'hover:bg-slate-800 text-slate-400 hover:text-white font-semibold'
+            }`}
+            title="Reset Zoom to full range (↺)"
+          >
+            <RotateCcw className="w-2.5 h-2.5" />
+            <span>Reset</span>
+          </button>
+        </div>
       </div>
 
       <svg
@@ -289,13 +329,13 @@ export default function PayoffChart({
         <defs>
           {/* Gradient for Profit Zone */}
           <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.38" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
             <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
           </linearGradient>
 
           {/* Gradient for Loss Zone */}
           <linearGradient id="lossGrad" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.38" />
+            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.32" />
             <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
           </linearGradient>
 
@@ -361,13 +401,13 @@ export default function PayoffChart({
             />
             {/* Spot Flag */}
             <rect
-              x={spotX - 35}
+              x={spotX - 42}
               y={padding.top - 18}
-              width="70"
+              width="84"
               height="16"
               rx="4"
               fill="#0369a1"
-              opacity="0.9"
+              opacity="0.95"
             />
             <text
               x={spotX}
@@ -375,7 +415,7 @@ export default function PayoffChart({
               textAnchor="middle"
               className="text-[9px] fill-cyan-100 font-mono font-black"
             >
-              Spot ₹{currentSpot.toLocaleString('en-IN')}
+              Spot ₹{effectiveSpot.toLocaleString('en-IN')}
             </text>
           </g>
         )}
@@ -408,7 +448,19 @@ export default function PayoffChart({
           );
         })}
 
-        {/* Payoff Curve Line */}
+        {/* 1. T+0 (Today's Live P&L) Blue Curve */}
+        <path
+          d={t0PathString}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="2"
+          strokeDasharray="5 3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+
+        {/* 2. Expiry Payoff Curve Line (Cyan) */}
         <path
           d={pathString}
           fill="none"
@@ -502,6 +554,16 @@ export default function PayoffChart({
               strokeDasharray="2 2"
               opacity="0.6"
             />
+            {/* T+0 Dot */}
+            <circle
+              cx={getX(hoveredPoint.spot)}
+              cy={getY(hoveredPoint.t0Pnl)}
+              r="4"
+              fill="#3b82f6"
+              stroke="#ffffff"
+              strokeWidth="1.5"
+            />
+            {/* Expiry Dot */}
             <circle
               cx={getX(hoveredPoint.spot)}
               cy={getY(hoveredPoint.pnl)}
@@ -514,28 +576,46 @@ export default function PayoffChart({
         )}
       </svg>
 
-      {/* Floating Hover Tooltip Card */}
+      {/* Floating Hover Tooltip Card (Shows BOTH T+0 Today's P&L and Expiry P&L) */}
       {hoveredPoint && !dragState?.isDragging && (
         <div
-          className="absolute z-20 pointer-events-none bg-slate-900/95 border border-slate-700 backdrop-blur-md rounded-lg p-2 shadow-2xl text-[11px] font-mono transform -translate-x-1/2"
+          className="absolute z-30 pointer-events-none bg-slate-900/95 border border-slate-700 backdrop-blur-md rounded-xl p-2.5 shadow-2xl text-[11px] font-mono transform -translate-x-1/2 min-w-[170px]"
           style={{
-            left: `${Math.min(90, Math.max(10, ((getX(hoveredPoint.spot) / width) * 100)))}%`,
-            top: '12px'
+            left: `${Math.min(85, Math.max(15, ((getX(hoveredPoint.spot) / width) * 100)))}%`,
+            top: '32px'
           }}
         >
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-1 mb-1">
-            <span className="text-slate-400">At Expiry:</span>
-            <span className="font-bold text-white">₹{Math.round(hoveredPoint.spot).toLocaleString('en-IN')}</span>
-            <span className={`text-[10px] ${hoveredPoint.spot >= currentSpot ? 'text-emerald-400' : 'text-rose-400'}`}>
-              ({hoveredPoint.spot >= currentSpot ? '+' : ''}
-              {(((hoveredPoint.spot - currentSpot) / currentSpot) * 100).toFixed(1)}%)
-            </span>
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
+            <span className="text-slate-400 text-[10px]">At Spot:</span>
+            <div className="flex items-center gap-1 font-bold text-white">
+              <span>₹{Math.round(hoveredPoint.spot).toLocaleString('en-IN')}</span>
+              <span className={`text-[9px] ${hoveredPoint.spot >= effectiveSpot ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ({hoveredPoint.spot >= effectiveSpot ? '+' : ''}
+                {(((hoveredPoint.spot - effectiveSpot) / effectiveSpot) * 100).toFixed(1)}%)
+              </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-slate-400">Projected P&L:</span>
-            <span className={`font-black text-xs ${hoveredPoint.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {hoveredPoint.pnl >= 0 ? '+' : ''}₹{hoveredPoint.pnl.toLocaleString('en-IN')}
-            </span>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3 text-blue-300">
+              <span className="text-slate-400 text-[10px] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
+                <span>T+0 (Today):</span>
+              </span>
+              <span className={`font-black text-xs ${hoveredPoint.t0Pnl >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                {hoveredPoint.t0Pnl >= 0 ? '+' : ''}₹{hoveredPoint.t0Pnl.toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-slate-400 text-[10px] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block"></span>
+                <span>At Expiry:</span>
+              </span>
+              <span className={`font-black text-xs ${hoveredPoint.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {hoveredPoint.pnl >= 0 ? '+' : ''}₹{hoveredPoint.pnl.toLocaleString('en-IN')}
+              </span>
+            </div>
           </div>
         </div>
       )}
