@@ -1,35 +1,71 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { generatePayoffCurve } from '../utils/optionsAnalytics';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { generatePayoffCurve, calculateLegPayoff } from '../utils/optionsAnalytics';
+import { RotateCcw, ZoomIn } from 'lucide-react';
 
 export default function PayoffChart({
   legs = [],
   currentSpot = 23500,
-  height = 240,
+  height = 230,
   symbol = 'NIFTY'
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [zoomDomain, setZoomDomain] = useState(null); // { lower, upper }
+  const [dragState, setDragState] = useState(null); // { startSvgX, currentSvgX, isDragging }
   const containerRef = useRef(null);
 
-  // Generate curve points and bounds
-  const curveData = useMemo(() => {
+  // Reset zoom when symbol or active legs change completely
+  useEffect(() => {
+    setZoomDomain(null);
+  }, [symbol]);
+
+  // Base curve calculation (auto-scaled)
+  const baseCurve = useMemo(() => {
     return generatePayoffCurve(legs, currentSpot, 0.08, 120);
   }, [legs, currentSpot]);
 
-  const { points, minPnl, maxPnl, breakevens, lowerBound, upperBound } = curveData;
+  const baseLower = baseCurve.lowerBound || (currentSpot * 0.94);
+  const baseUpper = baseCurve.upperBound || (currentSpot * 1.06);
+
+  // Active bounds (zoomed or base)
+  const lowerBound = zoomDomain ? zoomDomain.lower : baseLower;
+  const upperBound = zoomDomain ? zoomDomain.upper : baseUpper;
+
+  // Recalculate 140 fine-grained points for current visible bound
+  const points = useMemo(() => {
+    if (!legs || legs.length === 0 || lowerBound >= upperBound) return [];
+    const pts = [];
+    const steps = 140;
+    const stepSize = (upperBound - lowerBound) / steps;
+    for (let i = 0; i <= steps; i++) {
+      const spot = lowerBound + i * stepSize;
+      let pnl = 0;
+      for (const leg of legs) {
+        pnl += calculateLegPayoff(leg, spot);
+      }
+      pts.push({ spot, pnl: Math.round(pnl) });
+    }
+    return pts;
+  }, [legs, lowerBound, upperBound]);
+
+  // Breakevens from base curve
+  const breakevens = baseCurve.breakevens || [];
 
   // Chart dimensions & margins
-  const width = 720;
-  const padding = { top: 24, right: 36, bottom: 36, left: 64 };
+  const width = 760;
+  const padding = { top: 26, right: 40, bottom: 36, left: 68 };
   const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
+  const plotHeight = Math.max(100, height - padding.top - padding.bottom);
 
   // Compute symmetrical or padded Y-axis domain around 0
   const yDomain = useMemo(() => {
     if (points.length === 0) return { min: -1000, max: 1000 };
-    const absMax = Math.max(Math.abs(minPnl), Math.abs(maxPnl), 500);
+    const pnlVals = points.map(p => p.pnl);
+    const minP = Math.min(...pnlVals);
+    const maxP = Math.max(...pnlVals);
+    const absMax = Math.max(Math.abs(minP), Math.abs(maxP), 500);
     const padded = Math.ceil((absMax * 1.15) / 100) * 100;
     return { min: -padded, max: padded };
-  }, [minPnl, maxPnl, points]);
+  }, [points]);
 
   // Coordinate projection functions
   const getX = (spot) => {
@@ -37,10 +73,15 @@ export default function PayoffChart({
     return padding.left + ((spot - lowerBound) / (upperBound - lowerBound)) * plotWidth;
   };
 
+  const getSpotFromSvgX = (svgX) => {
+    const clampedX = Math.max(padding.left, Math.min(width - padding.right, svgX));
+    const ratio = (clampedX - padding.left) / plotWidth;
+    return lowerBound + ratio * (upperBound - lowerBound);
+  };
+
   const getY = (pnl) => {
     const range = yDomain.max - yDomain.min;
     if (range === 0) return padding.top + plotHeight / 2;
-    // SVG y=0 is top, y=plotHeight is bottom
     return padding.top + ((yDomain.max - pnl) / range) * plotHeight;
   };
 
@@ -48,49 +89,56 @@ export default function PayoffChart({
   const spotX = getX(currentSpot);
 
   // Build SVG path strings
-  const { pathString, profitAreaPath, lossAreaPath } = useMemo(() => {
-    if (!points || points.length === 0) return { pathString: '', profitAreaPath: '', lossAreaPath: '' };
+  const { pathString, fullArea } = useMemo(() => {
+    if (!points || points.length === 0) return { pathString: '', fullArea: '' };
 
-    // 1. Payoff Line
     const pts = points.map(p => `${getX(p.spot).toFixed(1)},${getY(p.pnl).toFixed(1)}`);
     const pathString = `M ${pts.join(' L ')}`;
 
-    // 2. Split into segments for Profit (>0) and Loss (<0) filled areas
-    // To fill correctly to the zero baseline:
-    const profitPts = [];
-    const lossPts = [];
-
-    // Construct polygon by traversing curve and closing to zeroY
     const firstX = getX(points[0].spot);
     const lastX = getX(points[points.length - 1].spot);
-
-    // Baseline closed path for full polygon
     const fullArea = `M ${firstX},${zeroY} L ${pts.join(' L ')} L ${lastX},${zeroY} Z`;
 
-    return {
-      pathString,
-      profitAreaPath: fullArea,
-      lossAreaPath: fullArea
-    };
+    return { pathString, fullArea };
   }, [points, lowerBound, upperBound, yDomain, zeroY]);
 
-  // Handle interactive mouse crosshair
-  const handleMouseMove = (e) => {
-    if (!containerRef.current || points.length === 0) return;
+  // Helper to extract SVG X from mouse event
+  const getSvgXFromEvent = (e) => {
+    if (!containerRef.current) return 0;
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
-    // Convert mouseX percentage to SVG width
-    const svgX = (mouseX / rect.width) * width;
+    return (mouseX / rect.width) * width;
+  };
 
-    if (svgX < padding.left || svgX > width - padding.right) {
+  // Mouse Down -> Start Drag Zoom
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return; // Left click only
+    const svgX = getSvgXFromEvent(e);
+    if (svgX >= padding.left && svgX <= width - padding.right) {
+      setDragState({
+        startSvgX: svgX,
+        currentSvgX: svgX,
+        isDragging: true
+      });
+    }
+  };
+
+  // Mouse Move -> Crosshair & Drag Zoom update
+  const handleMouseMove = (e) => {
+    const svgX = getSvgXFromEvent(e);
+
+    if (dragState?.isDragging) {
+      setDragState(prev => prev ? { ...prev, currentSvgX: svgX } : null);
       setHoveredPoint(null);
       return;
     }
 
-    // Find nearest point
-    const ratio = (svgX - padding.left) / plotWidth;
-    const estimatedSpot = lowerBound + ratio * (upperBound - lowerBound);
+    if (svgX < padding.left || svgX > width - padding.right || points.length === 0) {
+      setHoveredPoint(null);
+      return;
+    }
 
+    const estimatedSpot = getSpotFromSvgX(svgX);
     let closest = points[0];
     let minDiff = Infinity;
     for (const p of points) {
@@ -103,8 +151,36 @@ export default function PayoffChart({
     setHoveredPoint(closest);
   };
 
+  // Mouse Up -> Complete Drag Zoom
+  const handleMouseUp = () => {
+    if (dragState?.isDragging) {
+      const startX = dragState.startSvgX;
+      const endX = dragState.currentSvgX;
+      const dragDistance = Math.abs(endX - startX);
+
+      if (dragDistance >= 15) {
+        const spot1 = getSpotFromSvgX(Math.min(startX, endX));
+        const spot2 = getSpotFromSvgX(Math.max(startX, endX));
+        if (spot2 - spot1 >= 15) {
+          setZoomDomain({
+            lower: Math.round(spot1),
+            upper: Math.round(spot2)
+          });
+        }
+      }
+      setDragState(null);
+    }
+  };
+
   const handleMouseLeave = () => {
+    if (dragState?.isDragging) {
+      handleMouseUp();
+    }
     setHoveredPoint(null);
+  };
+
+  const handleDoubleClick = () => {
+    setZoomDomain(null);
   };
 
   // Format currency
@@ -122,33 +198,64 @@ export default function PayoffChart({
       >
         <span className="text-xs font-semibold">No active strategy legs</span>
         <span className="text-[11px] text-slate-600 mt-1">
-          Click <b className="text-blue-400">B</b> (Buy) or <b className="text-rose-400">S</b> (Sell) on any strike to build a strategy and view payoff
+          Click <b className="text-blue-400">B</b> (Buy) or <b className="text-rose-400">S</b> (Sell) on any strike to view payoff
         </span>
       </div>
     );
   }
 
+  // Calculate drag selection rectangle bounds
+  const dragRect = dragState?.isDragging ? {
+    x: Math.min(dragState.startSvgX, dragState.currentSvgX),
+    width: Math.abs(dragState.currentSvgX - dragState.startSvgX),
+    startSpot: Math.round(getSpotFromSvgX(Math.min(dragState.startSvgX, dragState.currentSvgX))),
+    endSpot: Math.round(getSpotFromSvgX(Math.max(dragState.startSvgX, dragState.currentSvgX)))
+  } : null;
+
   return (
     <div 
       ref={containerRef}
+      onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      className="relative w-full select-none bg-slate-950/80 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner"
+      onDoubleClick={handleDoubleClick}
+      className="relative w-full select-none bg-slate-950/80 rounded-xl border border-slate-800 p-2 overflow-hidden shadow-inner cursor-crosshair group"
+      title="Click and drag horizontally to Zoom in. Double click or click Reset Zoom to restore."
     >
+      {/* Zoom Toolbar & Controls */}
+      <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 pointer-events-auto">
+        {zoomDomain ? (
+          <button
+            onClick={() => setZoomDomain(null)}
+            className="px-2 py-0.5 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 text-white text-[10px] font-bold shadow-md flex items-center gap-1 transition-all cursor-pointer"
+            title="Reset Zoom to full curve"
+          >
+            <RotateCcw className="w-2.5 h-2.5" />
+            <span>Reset Zoom (₹{lowerBound} - ₹{upperBound})</span>
+          </button>
+        ) : (
+          <div className="px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800 text-[9px] text-slate-500 flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+            <ZoomIn className="w-2.5 h-2.5 text-cyan-400" />
+            <span>Drag to Zoom</span>
+          </div>
+        )}
+      </div>
+
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-auto overflow-visible cursor-crosshair"
+        className="w-full h-auto overflow-visible"
       >
         <defs>
           {/* Gradient for Profit Zone */}
           <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.38" />
             <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
           </linearGradient>
 
           {/* Gradient for Loss Zone */}
           <linearGradient id="lossGrad" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.35" />
+            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.38" />
             <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
           </linearGradient>
 
@@ -163,21 +270,20 @@ export default function PayoffChart({
 
         {/* Background Grid Lines */}
         <g className="opacity-15">
-          {/* 3 Horizontal grid lines */}
           <line x1={padding.left} y1={padding.top + plotHeight * 0.25} x2={width - padding.right} y2={padding.top + plotHeight * 0.25} stroke="#94a3b8" strokeDasharray="3 3" />
           <line x1={padding.left} y1={padding.top + plotHeight * 0.75} x2={width - padding.right} y2={padding.top + plotHeight * 0.75} stroke="#94a3b8" strokeDasharray="3 3" />
         </g>
 
         {/* Profit Fill (Clipped above zero line) */}
         <path
-          d={profitAreaPath}
+          d={fullArea}
           fill="url(#profitGrad)"
           clipPath="url(#aboveZeroClip)"
         />
 
         {/* Loss Fill (Clipped below zero line) */}
         <path
-          d={lossAreaPath}
+          d={fullArea}
           fill="url(#lossGrad)"
           clipPath="url(#belowZeroClip)"
         />
@@ -272,6 +378,41 @@ export default function PayoffChart({
           strokeLinecap="round"
         />
 
+        {/* Drag Selection Overlay */}
+        {dragRect && dragRect.width > 2 && (
+          <g>
+            <rect
+              x={dragRect.x}
+              y={padding.top}
+              width={dragRect.width}
+              height={plotHeight}
+              fill="#38bdf8"
+              fillOpacity="0.2"
+              stroke="#38bdf8"
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+            />
+            <rect
+              x={dragRect.x + dragRect.width / 2 - 45}
+              y={padding.top + plotHeight / 2 - 10}
+              width="90"
+              height="20"
+              rx="4"
+              fill="#0f172a"
+              stroke="#38bdf8"
+              strokeWidth="1"
+            />
+            <text
+              x={dragRect.x + dragRect.width / 2}
+              y={padding.top + plotHeight / 2 + 4}
+              textAnchor="middle"
+              className="text-[9px] fill-cyan-200 font-mono font-bold"
+            >
+              ₹{dragRect.startSpot} - ₹{dragRect.endSpot}
+            </text>
+          </g>
+        )}
+
         {/* Y-Axis Labels: Max & Min */}
         <text
           x={padding.left - 8}
@@ -295,21 +436,21 @@ export default function PayoffChart({
           x={padding.left}
           y={height - padding.bottom + 28}
           textAnchor="start"
-          className="text-[10px] fill-slate-500 font-mono"
+          className="text-[10px] fill-slate-400 font-mono font-semibold"
         >
-          ₹{lowerBound.toLocaleString('en-IN')}
+          ₹{Math.round(lowerBound).toLocaleString('en-IN')}
         </text>
         <text
           x={width - padding.right}
           y={height - padding.bottom + 28}
           textAnchor="end"
-          className="text-[10px] fill-slate-500 font-mono"
+          className="text-[10px] fill-slate-400 font-mono font-semibold"
         >
-          ₹{upperBound.toLocaleString('en-IN')}
+          ₹{Math.round(upperBound).toLocaleString('en-IN')}
         </text>
 
         {/* Interactive Mouse Hover Crosshair */}
-        {hoveredPoint && (
+        {hoveredPoint && !dragState?.isDragging && (
           <g>
             <line
               x1={getX(hoveredPoint.spot)}
@@ -334,7 +475,7 @@ export default function PayoffChart({
       </svg>
 
       {/* Floating Hover Tooltip Card */}
-      {hoveredPoint && (
+      {hoveredPoint && !dragState?.isDragging && (
         <div
           className="absolute z-20 pointer-events-none bg-slate-900/95 border border-slate-700 backdrop-blur-md rounded-lg p-2 shadow-2xl text-[11px] font-mono transform -translate-x-1/2"
           style={{
@@ -344,7 +485,7 @@ export default function PayoffChart({
         >
           <div className="flex items-center gap-2 border-b border-slate-800 pb-1 mb-1">
             <span className="text-slate-400">At Expiry:</span>
-            <span className="font-bold text-white">₹{hoveredPoint.spot.toLocaleString('en-IN')}</span>
+            <span className="font-bold text-white">₹{Math.round(hoveredPoint.spot).toLocaleString('en-IN')}</span>
             <span className={`text-[10px] ${hoveredPoint.spot >= currentSpot ? 'text-emerald-400' : 'text-rose-400'}`}>
               ({hoveredPoint.spot >= currentSpot ? '+' : ''}
               {(((hoveredPoint.spot - currentSpot) / currentSpot) * 100).toFixed(1)}%)

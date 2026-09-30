@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShieldCheck, AlertTriangle, TrendingUp, TrendingDown,
   Trash2, Plus, Minus, X, ChevronDown, ChevronUp, Maximize2, Minimize2,
-  PieChart, Activity, Zap, CheckCircle2, RotateCcw, ArrowRight
+  PieChart, Activity, Zap, CheckCircle2, RotateCcw, ArrowRight, Edit3,
+  BarChart2, Layers, DollarSign
 } from 'lucide-react';
 import PayoffChart from './PayoffChart';
 import { 
@@ -42,10 +43,13 @@ export default function PaperTradingTerminal({
       setActiveTab('builder');
     }
   }, [activeLegs.length]);
+
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [strategyName, setStrategyName] = useState('');
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [expandedTradeId, setExpandedTradeId] = useState(null);
+
   const [savedStrategies, setSavedStrategies] = useState(() => {
     try {
       const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
@@ -54,6 +58,7 @@ export default function PaperTradingTerminal({
       return [];
     }
   });
+
   const [deployedTrades, setDeployedTrades] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -62,6 +67,7 @@ export default function PaperTradingTerminal({
       return [];
     }
   });
+
   const [deployNotification, setDeployNotification] = useState(null);
 
   // Sync saved strategies to localStorage
@@ -82,7 +88,7 @@ export default function PaperTradingTerminal({
     }
   }, [deployedTrades]);
 
-  // Enrich active legs with live LTP from quotesMap if available
+  // Enrich active builder legs with live LTP from quotesMap if available
   const enrichedLegs = useMemo(() => {
     return activeLegs.map(leg => {
       const key = `${leg.strike}_${leg.type}`;
@@ -100,7 +106,7 @@ export default function PaperTradingTerminal({
     });
   }, [activeLegs, quotesMap, lotSize]);
 
-  // Compute live strategy metrics
+  // Compute live strategy metrics for builder
   const metrics = useMemo(() => {
     return calculateRiskMetrics(enrichedLegs, currentSpot);
   }, [enrichedLegs, currentSpot]);
@@ -120,19 +126,21 @@ export default function PaperTradingTerminal({
   // Calculate live PnL for deployed paper portfolio
   const deployedWithLivePnl = useMemo(() => {
     return deployedTrades.map(trade => {
-      let totalPnl = 0;
+      let openPnl = 0;
       const enrichedTradeLegs = (trade.legs || []).map(leg => {
         const key = `${leg.strike}_${leg.type}`;
         const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (leg.currentLtp || leg.entryPrice);
         const qty = (leg.lots || 1) * (leg.lotSize || 50);
         const pnl = leg.action === 'BUY' ? (liveLtp - leg.entryPrice) * qty : (leg.entryPrice - liveLtp) * qty;
-        totalPnl += pnl;
+        openPnl += pnl;
         return { ...leg, currentLtp: liveLtp, livePnl: Math.round(pnl) };
       });
+      const realized = trade.realizedPnl || 0;
       return {
         ...trade,
         legs: enrichedTradeLegs,
-        livePnl: Math.round(totalPnl)
+        openPnl: Math.round(openPnl),
+        livePnl: Math.round(openPnl + realized)
       };
     });
   }, [deployedTrades, quotesMap]);
@@ -229,6 +237,7 @@ export default function PaperTradingTerminal({
       maxProfit: metrics.maxProfit,
       maxLoss: metrics.maxLoss,
       pop,
+      realizedPnl: 0,
       status: 'OPEN'
     };
 
@@ -236,14 +245,65 @@ export default function PaperTradingTerminal({
     setDeployNotification(`Paper Strategy "${name}" deployed with ${activeLegs.length} legs!`);
     setTimeout(() => setDeployNotification(null), 4000);
     setActiveTab('deployed');
+    setExpandedTradeId(newTrade.id);
     // Clear builder legs
     onUpdateLegs([]);
     setStrategyName('');
   };
 
-  // Square off deployed position
+  // Edit Deployed Trade in Builder (Load legs into Builder to add new strikes)
+  const handleEditTradeInBuilder = (trade) => {
+    if (!trade || !trade.legs) return;
+    onUpdateLegs(trade.legs.map(l => ({ ...l })));
+    setStrategyName(trade.name || '');
+    setActiveTab('builder');
+    setDeployNotification(`Loaded "${trade.name}" into Builder! You can now add/remove strikes or adjust prices.`);
+    setTimeout(() => setDeployNotification(null), 4000);
+  };
+
+  // Partial Booking on a Deployed Leg
+  const handleBookPartialLot = (tradeId, legIndex, deltaLots = 1) => {
+    setDeployedTrades(prevTrades => {
+      return prevTrades.map(trade => {
+        if (trade.id !== tradeId) return trade;
+        const currentLeg = trade.legs[legIndex];
+        if (!currentLeg) return trade;
+
+        const lotsToBook = Math.min(deltaLots, currentLeg.lots);
+        const key = `${currentLeg.strike}_${currentLeg.type}`;
+        const liveLtp = quotesMap[key] !== undefined ? quotesMap[key] : (currentLeg.currentLtp || currentLeg.entryPrice);
+        const qty = lotsToBook * (currentLeg.lotSize || 50);
+        const bookedPnl = currentLeg.action === 'BUY'
+          ? (liveLtp - currentLeg.entryPrice) * qty
+          : (currentLeg.entryPrice - liveLtp) * qty;
+
+        const remainingLots = currentLeg.lots - lotsToBook;
+        let updatedLegs = [...trade.legs];
+
+        if (remainingLots <= 0) {
+          updatedLegs = updatedLegs.filter((_, idx) => idx !== legIndex);
+        } else {
+          updatedLegs[legIndex] = { ...currentLeg, lots: remainingLots };
+        }
+
+        const newRealized = Math.round((trade.realizedPnl || 0) + bookedPnl);
+        setDeployNotification(`Booked ${lotsToBook} lot(s) on ₹${currentLeg.strike} ${currentLeg.type}! Realized: ${bookedPnl >= 0 ? '+' : ''}₹${Math.round(bookedPnl)}`);
+        setTimeout(() => setDeployNotification(null), 4000);
+
+        return {
+          ...trade,
+          legs: updatedLegs,
+          realizedPnl: newRealized
+        };
+      }).filter(trade => trade.legs.length > 0);
+    });
+  };
+
+  // Square off deployed position completely
   const handleSquareOff = (tradeId) => {
     setDeployedTrades(prev => prev.filter(t => t.id !== tradeId));
+    setDeployNotification(`Position squared off successfully!`);
+    setTimeout(() => setDeployNotification(null), 3000);
   };
 
   if (!isOpen) return null;
@@ -256,7 +316,7 @@ export default function PaperTradingTerminal({
           ? 'inset-x-0 bottom-0 top-14 h-[calc(100vh-56px)]'
           : isMinimized 
             ? 'inset-x-0 bottom-0 h-12' 
-            : 'inset-x-0 bottom-0 max-h-[75vh] h-[480px]'
+            : 'inset-x-0 bottom-0 max-h-[82vh] h-[520px]'
       }`;
 
   return (
@@ -372,6 +432,19 @@ export default function PaperTradingTerminal({
         </div>
       </div>
 
+      {/* Notification Toast */}
+      {deployNotification && (
+        <div className="bg-gradient-to-r from-indigo-900 to-purple-900 border-b border-indigo-500/50 px-3 py-1.5 text-xs text-white flex items-center justify-between shadow-md shrink-0">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="font-semibold">{deployNotification}</span>
+          </div>
+          <button onClick={() => setDeployNotification(null)} className="text-slate-400 hover:text-white">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Body */}
       {(!isMinimized || isDocked) && (
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-900">
@@ -398,9 +471,9 @@ export default function PaperTradingTerminal({
                 )}
               </div>
 
-              {/* 1. Key Metrics Strip (2x2 Grid) */}
-              <div className="grid grid-cols-2 gap-2 shrink-0">
-                {/* Required Margin */}
+              {/* 1. Key Metrics Strip (Single Row: 4 Columns on standard screens) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
+                {/* 1. Required Margin */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                     Required Margin
@@ -411,7 +484,7 @@ export default function PaperTradingTerminal({
                   <span className="text-[9px] text-slate-500 block">NSE SPAN + Hedge</span>
                 </div>
 
-                {/* Live PnL */}
+                {/* 2. Live PnL */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                     Live Strategy P&L
@@ -422,7 +495,7 @@ export default function PaperTradingTerminal({
                   <span className="text-[9px] text-slate-500 block">Realtime 1s</span>
                 </div>
 
-                {/* Max Profit */}
+                {/* 3. Max Profit */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                     Max Profit
@@ -435,7 +508,7 @@ export default function PaperTradingTerminal({
                   <span className="text-[9px] text-slate-500 block">{metrics.netType}</span>
                 </div>
 
-                {/* Max Loss & POP */}
+                {/* 4. Max Loss & POP */}
                 <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -544,12 +617,12 @@ export default function PaperTradingTerminal({
                 </div>
               </div>
 
-              {/* 3. Interactive Payoff Chart */}
-              <div className="flex-1 flex flex-col min-h-[190px]">
+              {/* 3. Interactive Payoff Chart with Drag-to-Zoom */}
+              <div className="flex-1 flex flex-col min-h-[220px]">
                 <div className="flex items-center justify-between mb-1 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-white uppercase tracking-wider text-[11px]">
                     <PieChart className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Payoff Curve at Expiry</span>
+                    <span>Payoff Curve at Expiry (Drag to Zoom)</span>
                   </div>
                   {metrics.breakevens && metrics.breakevens.length > 0 && (
                     <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/30 px-1.5 py-0.5 rounded">
@@ -557,12 +630,12 @@ export default function PaperTradingTerminal({
                     </span>
                   )}
                 </div>
-                <div className="flex-1 min-h-[175px]">
+                <div className="flex-1 min-h-[200px]">
                   <PayoffChart 
                     legs={enrichedLegs} 
                     currentSpot={currentSpot} 
                     symbol={symbol}
-                    height={195} 
+                    height={220} 
                   />
                 </div>
               </div>
@@ -588,14 +661,14 @@ export default function PaperTradingTerminal({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'deployed' ? (
             /* Deployed Paper Portfolio Tab */
-            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-              <div className="flex items-center justify-between mb-3">
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Actively Running Paper Trades ({deployedWithLivePnl.length})
+                    Actively Running Positions ({deployedWithLivePnl.length})
                   </h3>
                 </div>
                 <div className="text-xs font-bold">
@@ -616,63 +689,274 @@ export default function PaperTradingTerminal({
                   </span>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {deployedWithLivePnl.map((trade) => (
-                    <div 
-                      key={trade.id}
-                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between shadow-lg"
-                    >
-                      <div>
-                        {/* Card Header */}
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-white">{trade.symbol}</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-cyan-300 font-mono text-[11px]">{trade.expiry}</span>
-                            <span className="text-slate-600 text-[10px]">@{trade.deployedAt}</span>
+                <div className="space-y-3">
+                  {deployedWithLivePnl.map((trade) => {
+                    const isExpanded = expandedTradeId === trade.id;
+                    return (
+                      <div 
+                        key={trade.id}
+                        className={`rounded-xl bg-slate-950 border transition-all shadow-lg overflow-hidden ${
+                          isExpanded ? 'border-indigo-500/60 ring-1 ring-indigo-500/30' : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Interactive Clickable Card Header */}
+                        <div 
+                          onClick={() => setExpandedTradeId(isExpanded ? null : trade.id)}
+                          className="p-3 bg-slate-900/60 hover:bg-slate-900/90 cursor-pointer flex items-center justify-between transition-colors border-b border-slate-800/80"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                              {trade.legs.length}L
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white text-xs">{trade.name}</span>
+                                <span className="text-cyan-300 font-mono text-[11px]">{trade.symbol}</span>
+                                <span className="text-slate-500 text-[10px]">{trade.expiry}</span>
+                              </div>
+                              <span className="text-slate-500 text-[10px]">Deployed @ {trade.deployedAt}</span>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className={`font-mono font-black text-sm ${trade.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {trade.livePnl >= 0 ? '+' : ''}₹{trade.livePnl.toLocaleString('en-IN')}
-                            </span>
-                            <button
-                              onClick={() => handleSquareOff(trade.id)}
-                              className="px-2 py-0.5 rounded bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 hover:text-white text-[10px] font-bold transition-colors cursor-pointer"
-                              title="Square off / Exit position at live market rates"
-                            >
-                              Square Off
-                            </button>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 block">Total P&L</span>
+                              <span className={`font-mono font-black text-sm ${trade.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {trade.livePnl >= 0 ? '+' : ''}₹{trade.livePnl.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditTradeInBuilder(trade);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                title="Load this trade into Strategy Builder to add new strikes, modify legs, or rebalance"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit / Add Strikes</span>
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSquareOff(trade.id);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 hover:text-white text-[11px] font-bold transition-colors cursor-pointer"
+                                title="Exit all legs immediately"
+                              >
+                                Exit All
+                              </button>
+
+                              <div className="p-1 text-slate-400">
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Trade Legs Breakdown */}
+                        {/* Collapsed Mini-Preview */}
+                        {!isExpanded && (
+                          <div className="p-2.5 px-3 flex items-center justify-between text-[11px] font-mono text-slate-400 bg-slate-950/40">
+                            <div className="flex items-center gap-3">
+                              {trade.legs.map((leg, i) => (
+                                <span key={i} className="flex items-center gap-1">
+                                  <span className={leg.action === 'BUY' ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold'}>{leg.action}</span>
+                                  <span>₹{leg.strike}{leg.type}</span>
+                                  <span className="text-slate-500">({leg.lots}L)</span>
+                                </span>
+                              ))}
+                            </div>
+                            <span className="text-indigo-300 text-[10px] font-sans font-semibold">Click to view Payoff Chart & Partial Booking</span>
+                          </div>
+                        )}
+
+                        {/* Expanded Full Details & Live Chart & Partial Booking */}
+                        {isExpanded && (
+                          <div className="p-3 space-y-3 bg-slate-950">
+                            {/* Summary Metrics Row for this Deployed Trade */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-[10px] text-slate-400 block font-bold">Required Margin</span>
+                                <span className="font-mono font-bold text-cyan-300">₹{trade.requiredMargin?.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-[10px] text-slate-400 block font-bold">Open P&L</span>
+                                <span className={`font-mono font-bold ${trade.openPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {trade.openPnl >= 0 ? '+' : ''}₹{trade.openPnl?.toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-[10px] text-slate-400 block font-bold">Booked P&L</span>
+                                <span className={`font-mono font-bold ${(trade.realizedPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {(trade.realizedPnl || 0) >= 0 ? '+' : ''}₹{(trade.realizedPnl || 0).toLocaleString('en-IN')}
+                                </span>
+                              </div>
+                              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                <span className="text-[10px] text-slate-400 block font-bold">POP & Max Profit</span>
+                                <span className="font-mono text-slate-200">{trade.pop}% | <b className="text-emerald-400">{typeof trade.maxProfit === 'number' ? `₹${trade.maxProfit}` : trade.maxProfit}</b></span>
+                              </div>
+                            </div>
+
+                            {/* Live Interactive Payoff Curve for Deployed Trade */}
+                            <div className="rounded-xl border border-slate-800 p-2 bg-slate-900/80">
+                              <div className="flex items-center justify-between mb-1.5 px-1">
+                                <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                                  <PieChart className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>Live Strategy Payoff Curve (Drag to Zoom)</span>
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">Current Spot: ₹{currentSpot.toLocaleString('en-IN')}</span>
+                              </div>
+                              <PayoffChart 
+                                legs={trade.legs} 
+                                currentSpot={currentSpot} 
+                                symbol={trade.symbol} 
+                                height={200} 
+                              />
+                            </div>
+
+                            {/* Deployed Legs Breakdown & Partial Booking Controls */}
+                            <div className="space-y-1.5">
+                              <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider px-1">
+                                Active Position Legs ({trade.legs.length})
+                              </div>
+                              {trade.legs.map((leg, i) => (
+                                <div 
+                                  key={i} 
+                                  className="p-2 rounded-lg bg-slate-900/90 border border-slate-800/90 flex items-center justify-between gap-2 text-xs"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-1.5 py-0.5 rounded font-black text-[10px] ${leg.action === 'BUY' ? 'bg-blue-600/30 text-blue-300 border border-blue-500/30' : 'bg-rose-600/30 text-rose-300 border border-rose-500/30'}`}>
+                                      {leg.action}
+                                    </span>
+                                    <span className="font-mono font-bold text-white">₹{leg.strike}</span>
+                                    <span className={`px-1 rounded text-[9px] font-black ${leg.type === 'CE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                      {leg.type}
+                                    </span>
+                                    <span className="font-mono text-slate-300 text-[11px] font-bold bg-slate-800 px-1.5 py-0.5 rounded">
+                                      {leg.lots} Lot{leg.lots > 1 ? 's' : ''} ({leg.lots * (leg.lotSize || 50)} Qty)
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 font-mono text-xs">
+                                    <div>
+                                      <span className="text-slate-400 text-[10px] block text-right">Entry $\rightarrow$ LTP</span>
+                                      <span className="text-slate-300 font-semibold">₹{leg.entryPrice} $\rightarrow$ ₹{leg.currentLtp}</span>
+                                    </div>
+
+                                    <div className="text-right min-w-[70px]">
+                                      <span className="text-slate-400 text-[10px] block">P&L</span>
+                                      <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
+                                      </span>
+                                    </div>
+
+                                    {/* Partial Booking Button */}
+                                    <button
+                                      onClick={() => handleBookPartialLot(trade.id, i, 1)}
+                                      className="px-2 py-1 rounded bg-amber-600/20 hover:bg-amber-600 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-[10px] transition-all cursor-pointer shadow-sm shrink-0"
+                                      title={`Book / Square off 1 Lot of ₹${leg.strike} ${leg.type}`}
+                                    >
+                                      Book 1 Lot
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Action Footer */}
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                              <button
+                                onClick={() => handleEditTradeInBuilder(trade)}
+                                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Load in Strategy Builder / Add New Strikes</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleSquareOff(trade.id)}
+                                className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-bold text-xs flex items-center gap-1 shadow-md cursor-pointer transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Square Off Entire Strategy</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Saved Strategies Tab */
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-400 font-bold text-sm">💾</span>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Saved Strategy Templates ({savedStrategies.length})
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-500">Stored in browser localStorage</span>
+              </div>
+
+              {savedStrategies.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center bg-slate-950/60 rounded-xl border border-dashed border-slate-800 text-slate-500">
+                  <span className="text-2xl mb-2">💾</span>
+                  <span className="text-xs font-semibold">No saved strategy templates</span>
+                  <span className="text-[11px] text-slate-600 mt-1">
+                    Build any strategy in the Builder tab and click "Save Strategy" to reuse anytime
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {savedStrategies.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between shadow-lg hover:border-purple-500/40 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs">
+                          <div>
+                            <span className="font-bold text-white block">{item.name}</span>
+                            <span className="text-slate-500 text-[10px]">{item.symbol} • Saved {item.savedAt}</span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteSavedStrategy(item.id)}
+                            className="p-1 text-slate-500 hover:text-rose-400 rounded cursor-pointer"
+                            title="Delete Saved Template"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Legs preview */}
                         <div className="space-y-1 mb-2">
-                          {trade.legs.map((leg, i) => (
-                            <div key={i} className="flex items-center justify-between text-[11px] font-mono text-slate-300">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`px-1 rounded text-[9px] font-black ${leg.action === 'BUY' ? 'bg-blue-600/30 text-blue-300' : 'bg-rose-600/30 text-rose-300'}`}>
-                                  {leg.action}
-                                </span>
-                                <span>₹{leg.strike} {leg.type}</span>
-                                <span className="text-slate-500 text-[10px]">({leg.lots}L)</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-slate-400">₹{leg.entryPrice} $\rightarrow$ ₹{leg.currentLtp}</span>
-                                <span className={`font-bold ${leg.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                  {leg.livePnl >= 0 ? '+' : ''}₹{leg.livePnl}
-                                </span>
-                              </div>
+                          {(item.legs || []).map((l, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-[11px] font-mono text-slate-300">
+                              <span className={l.action === 'BUY' ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold'}>
+                                {l.action} ₹{l.strike} {l.type}
+                              </span>
+                              <span className="text-slate-400">Entry ₹{l.entryPrice} ({l.lots}L)</span>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      {/* Card Footer: Metrics */}
-                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                        <span>Margin: ₹{trade.requiredMargin?.toLocaleString('en-IN')}</span>
-                        <span>POP: <b className="text-slate-200">{trade.pop}%</b></span>
-                        <span>Max P/L: <b className="text-emerald-400">{typeof trade.maxProfit === 'number' ? `₹${trade.maxProfit}` : trade.maxProfit}</b> / <b className="text-rose-400">{typeof trade.maxLoss === 'number' ? `₹${trade.maxLoss}` : trade.maxLoss}</b></span>
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between mt-auto">
+                        <span className="text-[10px] text-slate-400 font-mono">POP {item.pop}%</span>
+                        <button
+                          onClick={() => handleLoadStrategy(item)}
+                          className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                        >
+                          <Zap className="w-3 h-3" />
+                          <span>Load in Builder</span>
+                        </button>
                       </div>
                     </div>
                   ))}

@@ -934,7 +934,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                   <th colSpan={6} className="py-2 text-center text-emerald-400 font-bold uppercase tracking-wider bg-emerald-950/40 border-r border-slate-800">
                     CALLS (CE)
                   </th>
-                  <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-4">
+                  <th className="py-2 text-center text-white font-extrabold uppercase tracking-wider bg-slate-950 border-r border-slate-800 px-2 w-36 min-w-[144px] max-w-[144px]">
                     STRIKE
                   </th>
                   <th colSpan={6} className="py-2 text-center text-rose-400 font-bold uppercase tracking-wider bg-rose-950/40">
@@ -954,7 +954,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                   </th>
 
                   {/* STRIKE Column */}
-                  <th className="py-2 px-4 text-center bg-slate-900 text-white font-bold border-r border-slate-800">
+                  <th className="py-2 px-2 text-center bg-slate-900 text-white font-bold border-r border-slate-800 w-36 min-w-[144px] max-w-[144px]">
                     Strike Price
                   </th>
 
@@ -1045,15 +1045,15 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
 
                       {/* STRIKE PRICE (CENTER) - Buy & Sell Action Buttons on Hover */}
                       <td 
-                        className={`py-1 px-1.5 text-center border-r border-slate-800 transition-all select-none ${
+                        className={`py-1 px-1 text-center border-r border-slate-800 transition-colors select-none w-36 min-w-[144px] max-w-[144px] ${
                           isAtm 
                             ? 'bg-indigo-600 text-white font-black shadow-md' 
                             : 'bg-slate-900 text-white font-extrabold'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-1 min-w-[140px] px-1">
+                        <div className="flex items-center justify-between w-full h-6 px-1">
                           {/* CE Quick Trade Buttons (LEFT of Strike - Calls) */}
-                          <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                          <div className={`w-11 flex items-center gap-0.5 justify-start shrink-0 transition-opacity duration-150 ${hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'CE', 'BUY')}
                               className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
@@ -1073,7 +1073,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                           {/* Strike Price & Real-Time Chart Link */}
                           <div 
                             onClick={() => openChartModal(row, strike >= (chainData?.underlying_price || 0) ? 'CE' : 'PE')}
-                            className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-1"
+                            className="flex-1 flex items-center justify-center gap-1 cursor-pointer hover:text-indigo-200 hover:underline mx-0.5"
                             title={`Click to open Strike ₹${strike} Real-Time Candlestick Chart`}
                           >
                             <span className="font-mono font-bold text-xs">{strike.toLocaleString('en-IN')}</span>
@@ -1086,7 +1086,7 @@ export default function OptionChainView({ onSelectStock, onOpenChart, onOpenFyer
                           </div>
 
                           {/* PE Quick Trade Buttons (RIGHT of Strike - Puts) */}
-                          <div className={`flex items-center gap-1 transition-all ${hoveredStrike === strike ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
+                          <div className={`w-11 flex items-center gap-0.5 justify-end shrink-0 transition-opacity duration-150 ${hoveredStrike === strike ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <button
                               onClick={(e) => handleQuickTrade(e, strike, 'PE', 'BUY')}
                               className="w-5 h-5 rounded bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] flex items-center justify-center shadow-md shadow-blue-500/40 active:scale-90 cursor-pointer"
