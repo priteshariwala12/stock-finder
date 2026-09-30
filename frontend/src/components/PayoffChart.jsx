@@ -55,7 +55,7 @@ export default function PayoffChart({
       let t0Pnl = 0;
       for (const leg of legs) {
         pnl += calculateLegPayoff(leg, spot);
-        t0Pnl += calculateLegT0Payoff(leg, spot, 5);
+        t0Pnl += calculateLegT0Payoff(leg, spot, effectiveSpot, 5);
       }
       pts.push({ 
         spot: Math.round(spot * 10) / 10, 
@@ -64,7 +64,22 @@ export default function PayoffChart({
       });
     }
     return pts;
-  }, [legs, lowerBound, upperBound]);
+  }, [legs, effectiveSpot, lowerBound, upperBound]);
+
+  // Actual Strategy Live P&L at current spot
+  const liveStrategyPnl = useMemo(() => {
+    if (!legs || legs.length === 0) return 0;
+    return legs.reduce((acc, leg) => {
+      const totalQty = Math.max(1, leg.lots || 1) * Math.max(1, leg.lotSize || 50);
+      const isBuy = leg.action === 'BUY';
+      const ltp = (leg.currentLtp !== undefined && leg.currentLtp !== null && !isNaN(parseFloat(leg.currentLtp)))
+        ? parseFloat(leg.currentLtp)
+        : parseFloat(leg.entryPrice || 0);
+      const entry = parseFloat(leg.entryPrice || 0);
+      const pnl = isBuy ? (ltp - entry) * totalQty : (entry - ltp) * totalQty;
+      return acc + pnl;
+    }, 0);
+  }, [legs]);
 
   // Breakevens from base curve
   const breakevens = baseCurve.breakevens || [];
@@ -469,6 +484,46 @@ export default function PayoffChart({
           strokeLinejoin="round"
           strokeLinecap="round"
         />
+
+        {/* 3. Live Spot P&L Dot Marker on T+0 Blue Line (StockMock / Sensibull Simulator standard) */}
+        {spotX >= padding.left && spotX <= width - padding.right && (
+          <g>
+            <circle
+              cx={spotX}
+              cy={getY(liveStrategyPnl)}
+              r="7"
+              fill="#3b82f6"
+              opacity="0.3"
+            />
+            <circle
+              cx={spotX}
+              cy={getY(liveStrategyPnl)}
+              r="4.5"
+              fill={liveStrategyPnl >= 0 ? '#10b981' : '#ef4444'}
+              stroke="#ffffff"
+              strokeWidth="2"
+            />
+            <rect
+              x={spotX + 8}
+              y={getY(liveStrategyPnl) - 10}
+              width="74"
+              height="18"
+              rx="4"
+              fill="#0f172a"
+              stroke={liveStrategyPnl >= 0 ? '#10b981' : '#ef4444'}
+              strokeWidth="1"
+              opacity="0.95"
+            />
+            <text
+              x={spotX + 45}
+              y={getY(liveStrategyPnl) + 2.5}
+              textAnchor="middle"
+              className={`text-[9px] font-mono font-bold ${liveStrategyPnl >= 0 ? 'fill-emerald-400' : 'fill-rose-400'}`}
+            >
+              {liveStrategyPnl >= 0 ? `+₹${Math.round(liveStrategyPnl).toLocaleString('en-IN')}` : `-₹${Math.abs(Math.round(liveStrategyPnl)).toLocaleString('en-IN')}`}
+            </text>
+          </g>
+        )}
 
         {/* Drag Selection Overlay */}
         {dragRect && dragRect.width > 2 && (

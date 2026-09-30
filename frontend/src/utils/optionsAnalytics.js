@@ -78,16 +78,31 @@ export function blackScholesPrice(type, spot, strike, dte = 5, iv = 0.16, r = 0.
 }
 
 /**
- * Calculates current T+0 payoff for a leg at hypothetical spot S
+ * Calculates accurate T+0 payoff for a leg at hypothetical target spot S
+ * Anchored to the current live market price (LTP) at currentSpot (StockMock / Sensibull simulator method)
  */
-export function calculateLegT0Payoff(leg, spotAtTarget, dte = 5, defaultIv = 0.16) {
-  const { type, action, strike, entryPrice, iv, lots = 1, lotSize = 50 } = leg;
+export function calculateLegT0Payoff(leg, spotAtTarget, currentSpot, dte = 5, defaultIv = 0.16) {
+  const { type, action, strike, entryPrice, currentLtp, iv, lots = 1, lotSize = 50 } = leg;
   const legIv = (iv && parseFloat(iv) > 0 ? parseFloat(iv) / 100 : defaultIv);
   const totalQty = Math.max(1, lots) * Math.max(1, lotSize);
   const isBuy = action === 'BUY';
 
-  const theoreticalToday = blackScholesPrice(type, spotAtTarget, strike, dte, legIv);
-  const pnlPerShare = isBuy ? (theoreticalToday - entryPrice) : (entryPrice - theoreticalToday);
+  // Base price at current spot S0 is the actual market LTP (or entryPrice if LTP not available)
+  const basePrice = (currentLtp !== undefined && currentLtp !== null && !isNaN(parseFloat(currentLtp)))
+    ? parseFloat(currentLtp)
+    : (entryPrice !== undefined && entryPrice !== null && !isNaN(parseFloat(entryPrice)))
+      ? parseFloat(entryPrice)
+      : blackScholesPrice(type, currentSpot, strike, dte, legIv);
+
+  // Black-Scholes theoretical delta shift from currentSpot (S0) to spotAtTarget (S)
+  const bsTarget = blackScholesPrice(type, spotAtTarget, strike, dte, legIv);
+  const bsCurrent = blackScholesPrice(type, currentSpot, strike, dte, legIv);
+  const deltaPrice = bsTarget - bsCurrent;
+
+  // Estimated theoretical price today at target spot:
+  const estimatedPriceToday = Math.max(0, basePrice + deltaPrice);
+
+  const pnlPerShare = isBuy ? (estimatedPriceToday - entryPrice) : (entryPrice - estimatedPriceToday);
   return pnlPerShare * totalQty;
 }
 
@@ -117,7 +132,7 @@ export function generatePayoffCurve(legs, currentSpot, rangePct = 0.10, steps = 
     let totalT0Pnl = 0;
     for (const leg of legs) {
       totalPnl += calculateLegPayoff(leg, s);
-      totalT0Pnl += calculateLegT0Payoff(leg, s, dte);
+      totalT0Pnl += calculateLegT0Payoff(leg, s, currentSpot, dte);
     }
 
     const roundedPnl = Math.round(totalPnl);
