@@ -185,7 +185,7 @@ export default function PaperTradingTerminal({
       const realized = trade.realizedPnl || 0;
       const tradeMetrics = calculateRiskMetrics(enrichedTradeLegs, tradeSpot, realized);
       const tradeMargin = calculateRequiredMargin(enrichedTradeLegs, tradeSpot, tradeSym);
-      const tradePop = calculateProbabilityOfProfit(enrichedTradeLegs, tradeSpot, 15, 3);
+      const tradePop = calculateProbabilityOfProfit(enrichedTradeLegs, tradeSpot, 15, 3, realized);
 
       return {
         ...trade,
@@ -1037,22 +1037,30 @@ export default function PaperTradingTerminal({
                               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
                                 <span className="text-[10px] text-slate-400 block font-bold">Required Margin</span>
                                 <span className="font-mono font-bold text-cyan-300">₹{trade.requiredMargin?.toLocaleString('en-IN')}</span>
+                                <span className="text-[9px] text-slate-500 block font-mono">Span + Exposure</span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                                <span className="text-[10px] text-slate-400 block font-bold">Open P&L</span>
-                                <span className={`font-mono font-bold ${trade.openPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                  {trade.openPnl >= 0 ? '+' : ''}₹{trade.openPnl?.toLocaleString('en-IN')}
+                                <span className="text-[10px] text-slate-400 block font-bold">Total Live P&L (Net)</span>
+                                <span className={`font-mono font-black text-sm ${trade.livePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {trade.livePnl >= 0 ? '+' : ''}₹{trade.livePnl?.toLocaleString('en-IN')}
+                                </span>
+                                <span className="text-[9px] text-slate-500 block font-mono">
+                                  (Active: {trade.openPnl >= 0 ? '+' : ''}₹{trade.openPnl?.toLocaleString('en-IN')})
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                                <span className="text-[10px] text-slate-400 block font-bold">Booked P&L</span>
+                                <span className="text-[10px] text-slate-400 block font-bold">Booked / Exited P&L</span>
                                 <span className={`font-mono font-bold ${(trade.realizedPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                   {(trade.realizedPnl || 0) >= 0 ? '+' : ''}₹{(trade.realizedPnl || 0).toLocaleString('en-IN')}
+                                </span>
+                                <span className="text-[9px] text-slate-500 block font-mono">
+                                  {trade.closedLegs?.length || 0} leg{trade.closedLegs?.length === 1 ? '' : 's'} exited
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
                                 <span className="text-[10px] text-slate-400 block font-bold">POP & Max Profit</span>
-                                <span className="font-mono text-slate-200">{trade.pop}% | <b className="text-emerald-400">{typeof trade.maxProfit === 'number' ? `₹${trade.maxProfit}` : trade.maxProfit}</b></span>
+                                <span className="font-mono text-slate-200">{trade.pop}% | <b className="text-emerald-400">{typeof trade.maxProfit === 'number' ? `₹${trade.maxProfit.toLocaleString('en-IN')}` : trade.maxProfit}</b></span>
+                                <span className="text-[9px] text-slate-500 block font-mono">Max Loss: <b className="text-rose-400">{typeof trade.maxLoss === 'number' ? `₹${trade.maxLoss.toLocaleString('en-IN')}` : trade.maxLoss}</b></span>
                               </div>
                             </div>
 

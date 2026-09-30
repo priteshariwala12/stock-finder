@@ -376,10 +376,10 @@ export function calculateRiskMetrics(legs, currentSpot, realizedPnl = 0) {
  * @param {number} iv - Implied volatility in % (e.g. 14.5)
  * @param {number} dte - Days to expiry (minimum 1)
  */
-export function calculateProbabilityOfProfit(legs, currentSpot, iv = 15, dte = 3) {
-  if (!legs || legs.length === 0 || !currentSpot || currentSpot <= 0) return 50.0;
+export function calculateProbabilityOfProfit(legs, currentSpot, iv = 15, dte = 3, realizedPnl = 0) {
+  if ((!legs || legs.length === 0) && !realizedPnl) return 50.0;
 
-  const { points } = generatePayoffCurve(legs, currentSpot, 0.15, 100);
+  const { points } = generatePayoffCurve(legs, currentSpot, 0.15, 100, dte, realizedPnl);
   if (!points || points.length === 0) return 50.0;
 
   // Standard deviation of log returns: sigma * sqrt(T)
